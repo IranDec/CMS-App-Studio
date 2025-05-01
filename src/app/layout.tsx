@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Geist_Sans as Geist, Geist_Mono } from 'geist/font'; // Corrected Geist import
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster'; // Import Toaster
+import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -28,9 +29,17 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning={true}>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        // Remove suppressHydrationWarning from body as it's on html
       >
-        {children}
-        <Toaster /> {/* Add Toaster component here */}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster /> {/* Add Toaster component here */}
+        </ThemeProvider>
       </body>
     </html>
   );
