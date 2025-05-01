@@ -140,24 +140,27 @@ const getAnimationClass = (animation: string | undefined): string => {
 
 // --- Component-Specific Hooks and State ---
 
-// Simple Carousel Logic Hook (Example)
+// Simple Carousel Logic Hook (Example) - Call this hook *inside* CarouselWidget
 const useCarousel = (itemsCount: number, autoplay: boolean, delay: number) => {
     const [currentIndex, setCurrentIndex] = useState(0);
 
-    const nextSlide = () => setCurrentIndex((prev) => (prev + 1) % itemsCount);
-    const prevSlide = () => setCurrentIndex((prev) => (prev - 1 + itemsCount) % itemsCount);
-    const goToSlide = (index: number) => setCurrentIndex(index);
+    // Use useCallback for stable function references if needed, though likely not critical here
+    const nextSlide = useCallback(() => setCurrentIndex((prev) => (prev + 1) % itemsCount), [itemsCount]);
+    const prevSlide = useCallback(() => setCurrentIndex((prev) => (prev - 1 + itemsCount) % itemsCount), [itemsCount]);
+    const goToSlide = useCallback((index: number) => setCurrentIndex(index), []);
+
 
     useEffect(() => {
         if (!autoplay || itemsCount <= 1) return;
         const interval = setInterval(nextSlide, delay);
         return () => clearInterval(interval);
-    }, [autoplay, delay, itemsCount]);
+        // Add nextSlide to dependencies if not using useCallback, otherwise it's stable
+    }, [autoplay, delay, itemsCount, nextSlide]);
 
     return { currentIndex, nextSlide, prevSlide, goToSlide };
 };
 
-// Countdown Timer Logic Hook
+// Countdown Timer Logic Hook - Call this hook *inside* the Countdown widget's render logic
 const useCountdown = (targetDateISO: string | undefined) => {
     const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
     const [isExpired, setIsExpired] = useState(false);
@@ -181,7 +184,6 @@ const useCountdown = (targetDateISO: string | undefined) => {
             setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
             return;
         }
-
 
         const calculateTimeLeft = () => {
             const now = new Date().getTime();
@@ -226,10 +228,13 @@ interface CarouselWidgetProps {
 }
 
 const CarouselWidget: React.FC<CarouselWidgetProps> = memo(({ config, handleNavigation }) => {
-    // Only call the hook if there are items
-    const hookData = (config.items && config.items.length > 0)
+     // --- Call the hook here ---
+     // Only call the hook if there are items to avoid unnecessary state/effects
+    const hasItems = config.items && config.items.length > 0;
+    const hookData = hasItems
         ? useCarousel(config.items.length, config.autoplay ?? false, config.delay ?? 3000)
-        : { currentIndex: 0, nextSlide: () => {}, prevSlide: () => {}, goToSlide: () => {} };
+        : { currentIndex: 0, nextSlide: () => {}, prevSlide: () => {}, goToSlide: () => {} }; // Default object when no items
+
 
     const { currentIndex, nextSlide, prevSlide, goToSlide } = hookData;
     const { items, showArrows = true, showDots = true, aspectRatio } = config;
@@ -776,11 +781,16 @@ export function PhonePreview({
                      </h1>
                      <div className="flex items-center gap-1">
                          {headerConfig.showCartIcon && (
-                             <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" onClick={(e) => handleNavigation(e, '/cart')}>
-                                 <ShoppingCart className="h-5 w-5" />
-                                 {/* Basic badge simulation */}
-                                 <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
-                             </UiButton>
+                             <Link href="/cart" passHref legacyBehavior>
+                                 <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" asChild>
+                                     {/* Remove Fragment, directly use the icon and span */}
+                                     <a onClick={(e) => handleNavigation(e, '/cart')}> {/* Added onClick for consistency */}
+                                         <ShoppingCart className="h-5 w-5" />
+                                         {/* Basic badge simulation */}
+                                         <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
+                                     </a>
+                                 </UiButton>
+                             </Link>
                          )}
                           {headerConfig.showAuthButton && (
                              <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground" onClick={(e) => handleNavigation(e, '/auth')}>
@@ -1148,6 +1158,7 @@ export function PhonePreview({
 
         case 'countdown':
              const countdownConfig = config as CountdownConfig;
+             // --- Call the hook here ---
              const { timeLeft, isExpired } = useCountdown(countdownConfig.targetDate);
              const displayStyle = countdownConfig.displayStyle || 'blocks';
 

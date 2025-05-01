@@ -283,7 +283,7 @@ export function ConfigurationPanel({
     const form = useForm({
         resolver: zodResolver(currentSchema),
         defaultValues: selectedWidget?.config || currentDefaults,
-        mode: 'onBlur',
+        mode: 'onBlur', // Keep onBlur for explicit submissions on text fields etc.
     });
 
     // Hook for managing carousel items array
@@ -313,72 +313,77 @@ export function ConfigurationPanel({
     // --- Handle Form Submission (on blur or specific interactions) ---
      const handleBlurUpdate = (fieldName: string) => async () => {
          if (!selectedWidget) return;
-         const result = await form.trigger(fieldName as any);
-         if (result) {
-             const data = form.getValues();
-             console.log(`Updating widget config (on blur: ${fieldName}):`, selectedWidget.id, data);
-             updateWidgetConfig(selectedWidget.id, data);
-         } else {
-             console.log(`Validation failed for ${fieldName}:`, form.formState.errors);
+         // Trigger validation for the specific field first
+         const fieldResult = await form.trigger(fieldName as any);
+         if (!fieldResult) {
+             console.log(`Validation failed on blur for ${fieldName}:`, form.formState.errors);
+             // Optionally show toast or specific error message near the field
+             return; // Stop if the blurred field is invalid
          }
+
+          // If blurred field is valid, try validating the whole form silently
+          // This ensures dependent fields or complex rules are also checked.
+         const fullResult = await form.trigger();
+         if (fullResult) {
+              const data = form.getValues();
+              console.log(`Updating widget config (on blur: ${fieldName}, validated):`, selectedWidget.id, data);
+              updateWidgetConfig(selectedWidget.id, data);
+          } else {
+              // If full validation fails after a single field was valid, it indicates
+              // an issue elsewhere in the form. Log it but maybe don't block the update
+              // based on the single field (or decide based on strictness needed).
+              console.warn(`Full validation failed after ${fieldName} blur, but field was valid. Check other errors:`, form.formState.errors);
+              // Decide if you still want to update with partial data (use form.getValues(fieldName))
+              // or block until the whole form is valid. For now, let's update with full data if the specific field passed.
+              const data = form.getValues(); // Get potentially partially invalid data
+              updateWidgetConfig(selectedWidget.id, data); // Update cautiously
+          }
      };
 
     // --- Watch form changes and auto-submit for controls like sliders, checkboxes, selects ---
     useEffect(() => {
-        const subscription = form.watch((value, { name /*, type */ }) => {
+        const subscription = form.watch((value, { name, type }) => {
              const instantUpdateFields = [
-                // Base fields
+                // Base fields (Numbers/Enums/Booleans)
                 'marginTop', 'marginBottom', 'gap', 'height', 'zoomLevel', 'thickness', 'numberOfPosts', 'delay',
-                'animation', 'displayCondition',
-                // Header
-                'showBackButton', 'showMenuButton', 'showCartIcon', 'showAuthButton',
-                // Banner
-                'imageFit', 'aspectRatio', 'imageUploadEnabled',
-                // Grid
-                'columns', 'itemAspectRatio',
-                // List
-                'itemLayout', 'showDividers', 'imageSize',
-                // Text
+                'animation', 'displayCondition', 'imageFit', 'aspectRatio', 'imageUploadEnabled',
+                'columns', 'itemAspectRatio', 'itemLayout', 'showDividers', 'imageSize',
                 'fontSize', 'alignment', 'textColor', 'isBold', 'isItalic', 'enableRichText',
-                // Button
-                'variant', 'size', 'alignment',
-                // Map
+                'variant', 'size', 'buttonAlignment', // Changed 'alignment' to 'buttonAlignment' to avoid conflict
                 'showMarker', 'mapStyle', 'useCurrentLocation',
-                // Video
-                'autoplay', 'showControls',
-                // Carousel
-                'autoplay', 'showArrows', 'showDots',
-                 'items', // Watch the whole array for changes
-                // Audio
-                'autoplay', 'showControls', 'loop',
-                // Countdown
-                'displayStyle',
-                 // SocialFeed
-                 'platform', 'layout',
-                 // Divider
-                 'style', 'color',
+                'videoAutoplay', 'showControls', // Prefixed video specific bools
+                'carouselAutoplay', 'showArrows', 'showDots', 'carouselAspectRatio', // Prefixed carousel specific
+                'audioAutoplay', 'audioShowControls', 'loop', // Prefixed audio specific
+                'displayStyle', 'platform', 'layout', 'dividerStyle', 'dividerColor', // Prefixed divider specific
+
+                // Header specific booleans
+                'showBackButton', 'showMenuButton', 'showCartIcon', 'showAuthButton',
             ];
 
-            if (name && (instantUpdateFields.includes(name) || name.startsWith("items["))) { // Include array field changes
+            // Check if the changed field is one that should trigger instant update
+             // or if it's part of the carousel items array
+            if (name && (instantUpdateFields.includes(name) || name.startsWith("items["))) {
                  if (selectedWidget && currentSchema) {
-                    const currentValues = form.getValues();
-                    // Validate the specific changed field OR the whole form if it's an array change
-                     const validationSchema = name.startsWith("items[") ? currentSchema : currentSchema.pick({ [name]: true } as any);
-
-                     validationSchema.safeParseAsync(currentValues).then(result => {
-                          if (result.success) {
-                              // Always update the full config if validation passes
-                              console.log(`Updating widget config (instant: ${name}):`, selectedWidget.id, currentValues);
-                              updateWidgetConfig(selectedWidget.id, currentValues); // Pass validated data (or currentValues if validation was partial)
-                          } else {
-                               console.warn(`Instant update validation failed for ${name}:`, result.error.flatten().fieldErrors);
-                          }
-                     });
+                     // Use safeParseAsync for non-blocking validation
+                     currentSchema.safeParseAsync(form.getValues())
+                         .then(result => {
+                             if (result.success) {
+                                 // Only update if the ENTIRE form is valid according to the current schema
+                                 console.log(`Updating widget config (instant: ${name}, validated):`, selectedWidget.id, result.data);
+                                 updateWidgetConfig(selectedWidget.id, result.data);
+                             } else {
+                                 // Log validation errors but don't update if the form is invalid
+                                 // This prevents sending inconsistent data during rapid changes (like slider drag)
+                                 console.warn(`Instant update validation failed for ${name}:`, result.error.flatten().fieldErrors);
+                                 // Optionally: Show a subtle indicator that the form has errors
+                             }
+                         });
                  }
             }
         });
         return () => subscription.unsubscribe();
-    }, [form, selectedWidget, updateWidgetConfig, currentSchema]);
+         // Ensure dependencies cover all necessary values
+     }, [form, selectedWidget, updateWidgetConfig, currentSchema]);
 
 
     // --- Render Helper for Common Fields ---
@@ -584,7 +589,7 @@ export function ConfigurationPanel({
                           <div className="grid grid-cols-3 gap-4">
                              <div className="space-y-2"> <Label htmlFor="variant">Variant</Label> <Controller name="variant" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="variant"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="default">Default</SelectItem><SelectItem value="destructive">Destructive</SelectItem><SelectItem value="outline">Outline</SelectItem><SelectItem value="secondary">Secondary</SelectItem><SelectItem value="ghost">Ghost</SelectItem><SelectItem value="link">Link</SelectItem></SelectContent></Select> )} /> </div>
                              <div className="space-y-2"> <Label htmlFor="size">Size</Label> <Controller name="size" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="size"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="default">Default</SelectItem><SelectItem value="sm">Small</SelectItem><SelectItem value="lg">Large</SelectItem><SelectItem value="icon">Icon</SelectItem></SelectContent></Select> )} /> </div>
-                              <div className="space-y-2"> <Label htmlFor="alignment">Align</Label> <Controller name="alignment" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="alignment"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem><SelectItem value="full">Full Width</SelectItem></SelectContent></Select> )} /> </div>
+                              <div className="space-y-2"> <Label htmlFor="buttonAlignment">Align</Label> <Controller name="alignment" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="buttonAlignment"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="left">Left</SelectItem><SelectItem value="center">Center</SelectItem><SelectItem value="right">Right</SelectItem><SelectItem value="full">Full Width</SelectItem></SelectContent></Select> )} /> </div>
                          </div>
                      </>
                   );
@@ -612,9 +617,9 @@ export function ConfigurationPanel({
                   return (
                      <>
                          <div className="space-y-2"> <Label htmlFor="videoUrl">Video URL</Label> <Controller name="videoUrl" control={form.control} render={({ field }) => <Input id="videoUrl" placeholder="https://youtube.com/watch?v=..." {...field} onBlur={handleBlurUpdate('videoUrl')} />} /> {videoErrors?.videoUrl && <p className="text-sm text-destructive">{videoErrors.videoUrl.message}</p>} </div>
-                         <div className="space-y-2"> <Label htmlFor="aspectRatio">Aspect Ratio</Label> <Controller name="aspectRatio" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="aspectRatio"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="16/9">16:9</SelectItem><SelectItem value="4/3">4:3</SelectItem><SelectItem value="1/1">1:1</SelectItem><SelectItem value="9/16">9:16</SelectItem><SelectItem value="auto">Auto</SelectItem></SelectContent></Select> )} /> </div>
+                         <div className="space-y-2"> <Label htmlFor="videoAspectRatio">Aspect Ratio</Label> <Controller name="aspectRatio" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="videoAspectRatio"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="16/9">16:9</SelectItem><SelectItem value="4/3">4:3</SelectItem><SelectItem value="1/1">1:1</SelectItem><SelectItem value="9/16">9:16</SelectItem><SelectItem value="auto">Auto</SelectItem></SelectContent></Select> )} /> </div>
                          <div className="flex items-center space-x-4 pt-2">
-                             <div className="flex items-center space-x-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="autoplay">Autoplay</Label> </div>
+                             <div className="flex items-center space-x-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="videoAutoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="videoAutoplay">Autoplay</Label> </div>
                                <div className="flex items-center space-x-2"> <Controller name="showControls" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="showControls" checked={field.value ?? true} onCheckedChange={field.onChange} />} /> <Label htmlFor="showControls">Show Controls</Label> </div>
                           </div>
                      </>
@@ -649,12 +654,12 @@ export function ConfigurationPanel({
                          <Separator className="my-4" />
                          <h4 className="text-sm font-medium mb-2">Carousel Settings</h4>
                          <div className="grid grid-cols-2 gap-4">
-                             <div className="flex items-center space-x-2 pt-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="c-autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="c-autoplay">Autoplay</Label> </div>
+                             <div className="flex items-center space-x-2 pt-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="carouselAutoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="carouselAutoplay">Autoplay</Label> </div>
                              <div className="space-y-2"> <Label htmlFor="delay">Delay (ms)</Label> <Controller name="delay" control={form.control} defaultValue={3000} render={({ field }) => <Input id="delay" type="number" min="1000" step="100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} onBlur={handleBlurUpdate('delay')} disabled={!form.watch('autoplay')} />} /> {carouselErrors?.delay && <p className="text-sm text-destructive">{carouselErrors.delay.message}</p>} </div>
                              <div className="flex items-center space-x-2 pt-2"> <Controller name="showArrows" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="showArrows" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="showArrows">Show Arrows</Label> </div>
                              <div className="flex items-center space-x-2 pt-2"> <Controller name="showDots" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="showDots" checked={field.value ?? true} onCheckedChange={field.onChange} />} /> <Label htmlFor="showDots">Show Dots</Label> </div>
                          </div>
-                          <div className="space-y-2 mt-3"> <Label htmlFor="c-aspectRatio">Aspect Ratio</Label> <Controller name="aspectRatio" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="c-aspectRatio"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="16/9">16:9</SelectItem><SelectItem value="4/3">4:3</SelectItem><SelectItem value="1/1">1:1</SelectItem><SelectItem value="21/9">21:9</SelectItem><SelectItem value="auto">Auto</SelectItem></SelectContent></Select> )} /> </div>
+                          <div className="space-y-2 mt-3"> <Label htmlFor="carouselAspectRatio">Aspect Ratio</Label> <Controller name="aspectRatio" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="carouselAspectRatio"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="16/9">16:9</SelectItem><SelectItem value="4/3">4:3</SelectItem><SelectItem value="1/1">1:1</SelectItem><SelectItem value="21/9">21:9</SelectItem><SelectItem value="auto">Auto</SelectItem></SelectContent></Select> )} /> </div>
                      </>
                  );
              case 'audio':
@@ -663,9 +668,9 @@ export function ConfigurationPanel({
                     <>
                         <div className="space-y-2"> <Label htmlFor="audioUrl">Audio File URL</Label> <Controller name="audioUrl" control={form.control} render={({ field }) => <Input id="audioUrl" placeholder="https://.../track.mp3" {...field} onBlur={handleBlurUpdate('audioUrl')} />} /> {audioErrors?.audioUrl && <p className="text-sm text-destructive">{audioErrors.audioUrl.message}</p>} </div>
                          <div className="grid grid-cols-3 gap-4 pt-2">
-                             <div className="flex items-center space-x-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="a-autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="a-autoplay">Autoplay</Label> </div>
-                             <div className="flex items-center space-x-2"> <Controller name="showControls" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="a-controls" checked={field.value ?? true} onCheckedChange={field.onChange} />} /> <Label htmlFor="a-controls">Controls</Label> </div>
-                             <div className="flex items-center space-x-2"> <Controller name="loop" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="a-loop" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="a-loop">Loop</Label> </div>
+                             <div className="flex items-center space-x-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="audioAutoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="audioAutoplay">Autoplay</Label> </div>
+                             <div className="flex items-center space-x-2"> <Controller name="showControls" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="audioShowControls" checked={field.value ?? true} onCheckedChange={field.onChange} />} /> <Label htmlFor="audioShowControls">Controls</Label> </div>
+                             <div className="flex items-center space-x-2"> <Controller name="loop" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="loop" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="loop">Loop</Label> </div>
                          </div>
                     </>
                  );
@@ -702,9 +707,9 @@ export function ConfigurationPanel({
                   return (
                      <>
                          <div className="grid grid-cols-3 gap-4 items-end"> {/* Use items-end */}
-                             <div className="space-y-2"> <Label htmlFor="style">Style</Label> <Controller name="style" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="style"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="solid">Solid</SelectItem><SelectItem value="dashed">Dashed</SelectItem><SelectItem value="dotted">Dotted</SelectItem></SelectContent></Select> )} /> </div>
+                             <div className="space-y-2"> <Label htmlFor="dividerStyle">Style</Label> <Controller name="style" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="dividerStyle"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="solid">Solid</SelectItem><SelectItem value="dashed">Dashed</SelectItem><SelectItem value="dotted">Dotted</SelectItem></SelectContent></Select> )} /> </div>
                              <div className="space-y-2"> <Label htmlFor="thickness">Thickness (px)</Label> <Controller name="thickness" control={form.control} defaultValue={1} render={({ field }) => <Input id="thickness" type="number" min="1" max="10" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} onBlur={handleBlurUpdate('thickness')} />} /> {dividerErrors?.thickness && <p className="text-sm text-destructive">{dividerErrors.thickness.message}</p>} </div>
-                              <div className="space-y-2"> <Label htmlFor="d-color">Color</Label> <Controller name="color" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="d-color"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="border">Default (Border)</SelectItem><SelectItem value="primary">Primary</SelectItem><SelectItem value="accent">Accent</SelectItem></SelectContent></Select> )} /> </div>
+                              <div className="space-y-2"> <Label htmlFor="dividerColor">Color</Label> <Controller name="color" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="dividerColor"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="border">Default (Border)</SelectItem><SelectItem value="primary">Primary</SelectItem><SelectItem value="accent">Accent</SelectItem></SelectContent></Select> )} /> </div>
                           </div>
                      </>
                   );
@@ -813,3 +818,4 @@ export function ConfigurationPanel({
         </div>
     );
 }
+
