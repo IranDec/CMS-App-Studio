@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link'; // Import Link
 import { cn } from '@/lib/utils';
@@ -24,6 +24,8 @@ import {
     Palette, // For Rich Text placeholder
     LocateFixed, // Geolocation icon
     Bell, // Push Notification placeholder
+    ChevronLeft, // Carousel arrow
+    ChevronRight, // Carousel arrow
 } from 'lucide-react';
 import { Button as UiButton } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -56,13 +58,13 @@ interface PhonePreviewProps {
 
 
 // --- Helper Functions for Dynamic Classes (Keep existing helpers) ---
-const getMarginClass = (value: number | undefined, prefix: 'mt' | 'mb'): string => { /* ... */
+const getMarginClass = (value: number | undefined, prefix: 'mt' | 'mb'): string => {
     const defaultValue = 2;
     const val = value ?? defaultValue;
     if (val < 0 || val > 20) return `${prefix}-${defaultValue}`;
     return `${prefix}-${val}`;
 };
-const getAlignmentClass = (alignment: string | undefined): string => { /* ... */
+const getAlignmentClass = (alignment: string | undefined): string => {
     switch (alignment) {
         case 'left': return 'text-left justify-start';
         case 'center': return 'text-center justify-center';
@@ -71,12 +73,12 @@ const getAlignmentClass = (alignment: string | undefined): string => { /* ... */
         default: return 'text-left justify-start';
     }
 };
-const getFontSizeClass = (size: string | undefined): string => { /* ... */
+const getFontSizeClass = (size: string | undefined): string => {
     const validSizes = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl'];
     if (size && validSizes.includes(size)) return `text-${size}`;
     return 'text-base';
 };
-const getTextColorClass = (color: string | undefined): string => { /* ... */
+const getTextColorClass = (color: string | undefined): string => {
      switch (color) {
         case 'primary': return 'text-primary';
         case 'secondary': return 'text-secondary-foreground';
@@ -85,7 +87,7 @@ const getTextColorClass = (color: string | undefined): string => { /* ... */
         case 'default': default: return 'text-foreground';
      }
 };
-const getAspectRatioClass = (ratio: string | undefined): string => { /* ... */
+const getAspectRatioClass = (ratio: string | undefined): string => {
     switch (ratio) {
         case '16/9': return 'aspect-video';
         case '4/3': return 'aspect-[4/3]';
@@ -96,31 +98,31 @@ const getAspectRatioClass = (ratio: string | undefined): string => { /* ... */
         default: return 'aspect-video';
     }
 };
-const getImageFitClass = (fit: string | undefined): string => { /* ... */
+const getImageFitClass = (fit: string | undefined): string => {
     switch (fit) { case 'contain': return 'object-contain'; case 'cover': default: return 'object-cover'; }
 };
-const getGridColsClass = (cols: string | undefined): string => { /* ... */
+const getGridColsClass = (cols: string | undefined): string => {
     const validCols = ['1', '2', '3', '4'];
     if (cols && validCols.includes(cols)) return `grid-cols-${cols}`;
     return 'grid-cols-2';
 };
-const getGapClass = (gap: number | undefined): string => { /* ... */
+const getGapClass = (gap: number | undefined): string => {
     const defaultValue = 4;
     const val = gap ?? defaultValue;
     if (val < 0 || val > 10) return `gap-${defaultValue}`;
     return `gap-${val}`;
 };
-const getButtonSizeClass = (size: string | undefined): string => { /* ... */
+const getButtonSizeClass = (size: string | undefined): string => {
     switch (size) {
         case 'sm': return 'h-9 px-3'; case 'lg': return 'h-11 px-8'; case 'icon': return 'h-10 w-10'; case 'default': default: return 'h-10 px-4 py-2';
     }
 };
-const getButtonAlignmentClass = (alignment: string | undefined): string => { /* ... */
+const getButtonAlignmentClass = (alignment: string | undefined): string => {
     switch (alignment) {
         case 'left': return 'justify-start'; case 'center': return 'justify-center'; case 'right': return 'justify-end'; case 'full': return 'justify-center w-full'; default: return 'justify-center';
     }
 };
-const getImageSizeClass = (size: string | undefined): string => { /* ... */
+const getImageSizeClass = (size: string | undefined): string => {
     switch(size) { case 'sm': return 'w-10 h-10'; case 'lg': return 'w-20 h-20'; case 'md': default: return 'w-16 h-16'; }
 };
 
@@ -167,22 +169,28 @@ const useCountdown = (targetDateISO: string | undefined) => {
             return;
         }
 
-        const targetTime = new Date(targetDateISO).getTime();
-        if (isNaN(targetTime)) {
-             setIsExpired(true); // Invalid date format
-             setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-             return;
+        let targetTime: number;
+        try {
+            targetTime = new Date(targetDateISO).getTime();
+             if (isNaN(targetTime)) {
+                 throw new Error("Invalid date");
+             }
+        } catch (e) {
+            console.error("Invalid targetDateISO:", targetDateISO, e);
+            setIsExpired(true);
+            setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+            return;
         }
 
 
-        const interval = setInterval(() => {
+        const calculateTimeLeft = () => {
             const now = new Date().getTime();
             const difference = targetTime - now;
 
             if (difference <= 0) {
                 setIsExpired(true);
                 setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-                clearInterval(interval);
+                return false; // Indicate timer should stop
             } else {
                  setIsExpired(false);
                 const days = Math.floor(difference / (1000 * 60 * 60 * 24));
@@ -190,30 +198,117 @@ const useCountdown = (targetDateISO: string | undefined) => {
                 const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
                 const seconds = Math.floor((difference % (1000 * 60)) / 1000);
                 setTimeLeft({ days, hours, minutes, seconds });
+                return true; // Indicate timer should continue
             }
-        }, 1000);
+        };
 
-        // Initial calculation
-         const now = new Date().getTime();
-         const difference = targetTime - now;
-         if (difference <= 0) {
-             setIsExpired(true);
-             setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-         } else {
-             setIsExpired(false);
-              const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-              const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-              const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-              const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-              setTimeLeft({ days, hours, minutes, seconds });
+         // Initial calculation
+         if (!calculateTimeLeft()) {
+             return; // Don't start interval if already expired
          }
 
+        const interval = setInterval(() => {
+            if (!calculateTimeLeft()) {
+                clearInterval(interval);
+            }
+        }, 1000);
 
         return () => clearInterval(interval);
     }, [targetDateISO]);
 
     return { timeLeft, isExpired };
 };
+
+// --- NEW: Dedicated Carousel Widget Component ---
+interface CarouselWidgetProps {
+    config: CarouselConfig;
+    handleNavigation: (event: React.MouseEvent, targetUrl: string) => void;
+}
+
+const CarouselWidget: React.FC<CarouselWidgetProps> = memo(({ config, handleNavigation }) => {
+    const { items, autoplay = false, delay = 3000, showArrows = true, showDots = true, aspectRatio } = config;
+    const { currentIndex, nextSlide, prevSlide, goToSlide } = useCarousel(items?.length || 0, autoplay, delay);
+    const aspectRatioClassCarousel = getAspectRatioClass(aspectRatio);
+
+    if (!items || items.length === 0) {
+        // Use the placeholder rendering logic directly here or from a shared function
+        return (
+            <div
+                className={cn("relative w-full rounded overflow-hidden bg-muted flex items-center justify-center min-h-[8rem] h-auto border border-dashed border-input p-4")}
+                data-ai-hint="carousel placeholder"
+            >
+                <div className="flex flex-col items-center justify-center text-muted-foreground text-xs text-center">
+                    {React.createElement(GalleryHorizontalEnd, { className: "w-8 h-8 mb-2 opacity-50" })}
+                    <span className="font-medium">Image Carousel</span>
+                    <span className="text-[10px] mt-1">Add items in configuration</span>
+                    <span className="text-[10px] mt-2 italic">Configure in panel</span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={cn("relative w-full overflow-hidden rounded bg-muted", aspectRatioClassCarousel || 'h-48')}>
+            {/* Slides */}
+            <div className="relative h-full w-full">
+                {items.map((item, index) => (
+                    <div
+                        key={item.id}
+                        className={cn(
+                            "absolute inset-0 transition-opacity duration-700 ease-in-out",
+                            index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
+                        )}
+                    >
+                        {item.imageUrl ? (
+                             <Image
+                                src={item.imageUrl}
+                                alt={item.altText || `Slide ${index + 1}`}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 33vw"
+                                priority={index < 2}
+                                onError={(e) => { console.error("Carousel image failed:", item.imageUrl); e.currentTarget.style.opacity = '0'; /* Optionally show placeholder */ }}
+                                onLoad={(e) => { e.currentTarget.style.opacity = '1'; }}
+                            />
+                         ) : (
+                             <div className="w-full h-full bg-muted flex items-center justify-center text-xs text-muted-foreground">No Image</div>
+                         )}
+                        {/* Optional Link Overlay */}
+                        {item.linkUrl && (
+                            <a onClick={(e) => handleNavigation(e, item.linkUrl!)} className="absolute inset-0 cursor-pointer" aria-label={item.altText || 'Carousel link'}></a>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Navigation Arrows */}
+            {(showArrows && items.length > 1) && (
+                <>
+                    <UiButton variant="secondary" size="icon" className="absolute left-2 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full opacity-70 hover:opacity-100" onClick={prevSlide}> <ChevronLeft className="h-5 w-5" /> </UiButton>
+                    <UiButton variant="secondary" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full opacity-70 hover:opacity-100" onClick={nextSlide}> <ChevronRight className="h-5 w-5" /> </UiButton>
+                </>
+            )}
+
+            {/* Dots Indicator */}
+            {(showDots && items.length > 1) && (
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex space-x-2">
+                    {items.map((_, index) => (
+                        <button
+                            key={index}
+                            onClick={() => goToSlide(index)}
+                            className={cn(
+                                "h-2 w-2 rounded-full transition-colors",
+                                index === currentIndex ? 'bg-primary' : 'bg-white/50 hover:bg-white/80'
+                            )}
+                            aria-label={`Go to slide ${index + 1}`}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+});
+CarouselWidget.displayName = 'CarouselWidget';
 
 
 // --- Phone Preview Component ---
@@ -258,42 +353,42 @@ export function PhonePreview({
  // };
 
 
-  // --- Local Storage Sync (Basic Example) ---
-  useEffect(() => {
-    // Load widgets from local storage on initial mount
-    if (typeof window !== 'undefined') {
-      const savedWidgets = localStorage.getItem('cmsAppStudioWidgets');
-      if (savedWidgets) {
-        try {
-          const parsedWidgets = JSON.parse(savedWidgets);
-          if (Array.isArray(parsedWidgets)) {
-            setWidgets(parsedWidgets);
-          }
-        } catch (e) {
-          console.error("Failed to parse widgets from local storage:", e);
-        }
-      }
-       // Load last viewed URL
-       const savedUrl = localStorage.getItem('cmsAppStudioPreviewUrl');
-       if (savedUrl) {
-           setCurrentPreviewUrl(savedUrl);
-       }
+  // --- Local Storage Sync --- Moved to page.tsx to avoid hydration issues here
+  // useEffect(() => {
+  //   // Load widgets from local storage on initial mount
+  //   if (typeof window !== 'undefined') {
+  //     const savedWidgets = localStorage.getItem('cmsAppStudioWidgets');
+  //     if (savedWidgets) {
+  //       try {
+  //         const parsedWidgets = JSON.parse(savedWidgets);
+  //         if (Array.isArray(parsedWidgets)) {
+  //           setWidgets(parsedWidgets);
+  //         }
+  //       } catch (e) {
+  //         console.error("Failed to parse widgets from local storage:", e);
+  //       }
+  //     }
+  //      // Load last viewed URL
+  //      const savedUrl = localStorage.getItem('cmsAppStudioPreviewUrl');
+  //      if (savedUrl) {
+  //          setCurrentPreviewUrl(savedUrl);
+  //      }
 
-    }
-  }, [setWidgets, setCurrentPreviewUrl]); // Only run once on mount
+  //   }
+  // }, [setWidgets, setCurrentPreviewUrl]); // Only run once on mount
 
-  useEffect(() => {
-    // Save widgets to local storage whenever they change
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cmsAppStudioWidgets', JSON.stringify(widgets));
-       // Save current preview URL
-       localStorage.setItem('cmsAppStudioPreviewUrl', currentPreviewUrl);
-    }
-  }, [widgets, currentPreviewUrl]);
+  // useEffect(() => {
+  //   // Save widgets to local storage whenever they change
+  //   if (typeof window !== 'undefined') {
+  //     localStorage.setItem('cmsAppStudioWidgets', JSON.stringify(widgets));
+  //      // Save current preview URL
+  //      localStorage.setItem('cmsAppStudioPreviewUrl', currentPreviewUrl);
+  //   }
+  // }, [widgets, currentPreviewUrl]);
 
 
   // --- Drag and Drop Handlers (Keep existing logic) ---
-  const handleContainerDragOver = (event: React.DragEvent<HTMLDivElement>) => { /* ... */
+  const handleContainerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       if (event.dataTransfer.types.includes('widgettype')) {
           setIsDraggingOverContainer(true);
@@ -302,22 +397,24 @@ export function PhonePreview({
           if (!dropTargetId) { setIsDraggingOverContainer(true); } else { setIsDraggingOverContainer(false); }
       }
    };
-  const handleContainerDragLeave = (event: React.DragEvent<HTMLDivElement>) => { /* ... */
+  const handleContainerDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
       if (!event.currentTarget.contains(event.relatedTarget as Node)) {
          setIsDraggingOverContainer(false);
       }
   };
-  const handleContainerDrop = (event: React.DragEvent<HTMLDivElement>) => { /* ... */
+  const handleContainerDrop = (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       setIsDraggingOverContainer(false);
 
       const widgetType = event.dataTransfer.getData('widgetType');
       const widgetName = event.dataTransfer.getData('widgetName');
-      if (widgetType && !draggedWidgetId) {
+      const droppedId = event.dataTransfer.getData('widgetIdInternal');
+
+      if (widgetType && !droppedId) { // Dropped from panel
         console.log('Dropped from panel:', widgetType, 'Name:', widgetName);
         const defaultConfig = widgetDefaultValuesMap[widgetType as keyof typeof widgetDefaultValuesMap] || {};
         const newWidget: DroppedWidget = {
-          id: `${widgetType}-${Date.now()}`,
+          id: `${widgetType}-${Date.now()}-${Math.random().toString(16).slice(2)}`, // Ensure unique ID
           type: widgetType,
           name: widgetName || widgetType.charAt(0).toUpperCase() + widgetType.slice(1),
           config: { ...defaultConfig } as AllWidgetConfigs,
@@ -325,33 +422,42 @@ export function PhonePreview({
 
           if (widgetType === 'header') {
                const headerExists = widgets.some(w => w.type === 'header');
-               if (headerExists) { console.log("Header already exists"); return; }
-               setWidgets(prev => [newWidget, ...prev]);
+               if (headerExists) { toast({title: "Action Denied", description: "Only one Header widget is allowed.", variant: "destructive"}); return; }
+               setWidgets(prev => [newWidget, ...prev.filter(w => w.type !== 'header')]); // Replace existing header if somehow present
                setSelectedWidgetId(newWidget.id);
           } else {
-              if (dropTargetId) {
-                  const targetIndex = widgets.findIndex(w => w.id === dropTargetId);
-                  if (targetIndex !== -1) {
-                       setWidgets(prev => {
-                           const newWidgets = [...prev];
-                           newWidgets.splice(targetIndex, 0, newWidget);
-                           return newWidgets;
-                       });
-                        setSelectedWidgetId(newWidget.id);
-                   } else { addWidget(newWidget); }
-               } else { addWidget(newWidget); }
+              // Drop into specific position or at the end
+              const targetId = dropTargetId || null; // Use the ID of the element being hovered over
+              const nonHeaderWidgets = widgets.filter(w => w.type !== 'header');
+              const targetIndex = nonHeaderWidgets.findIndex(w => w.id === targetId);
+              const header = widgets.find(w => w.type === 'header');
+              const newWidgets = header ? [header] : [];
+
+              if (targetId && targetIndex !== -1) {
+                  // Insert before the target
+                   const before = nonHeaderWidgets.slice(0, targetIndex);
+                   const after = nonHeaderWidgets.slice(targetIndex);
+                   newWidgets.push(...before, newWidget, ...after);
+                   setWidgets(newWidgets);
+              } else {
+                   // Append to the end
+                   newWidgets.push(...nonHeaderWidgets, newWidget);
+                   setWidgets(newWidgets);
+              }
+               setSelectedWidgetId(newWidget.id);
+               setCurrentPreviewUrl('/'); // Navigate home after adding
           }
-          document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
           setDropTargetId(null);
           setDraggedWidgetId(null);
+          document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
           return;
       }
 
-      if (draggedWidgetId && dropTargetId) {
+      if (draggedWidgetId && dropTargetId) { // Reordering existing widgets
            const draggedWidget = widgets.find(w => w.id === draggedWidgetId);
            if (draggedWidget?.type === 'header') { console.log("Header cannot be moved via drag"); }
            else { moveWidget(draggedWidgetId, dropTargetId); }
-      } else if (draggedWidgetId && !dropTargetId && widgets.length > 0) {
+      } else if (draggedWidgetId && isDraggingOverContainer) { // Dragged to container end
            const nonHeaderWidgets = widgets.filter(w => w.type !== 'header');
            if (nonHeaderWidgets.length > 0) {
               const lastWidgetId = nonHeaderWidgets[nonHeaderWidgets.length - 1].id;
@@ -365,66 +471,78 @@ export function PhonePreview({
       document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
    };
 
-  const handleWidgetDragStart = (event: React.DragEvent<HTMLDivElement>, widgetId: string) => { /* ... */
+  const handleWidgetDragStart = (event: React.DragEvent<HTMLDivElement>, widgetId: string) => {
        const widget = widgets.find(w => w.id === widgetId);
        if (widget?.type === 'header') { event.preventDefault(); return; }
-       if (!(event.target as HTMLElement).closest('.widget-drag-handle')) { event.preventDefault(); return; }
+       // Allow drag only if grabbing the handle
+       if (!(event.target as HTMLElement).closest('.widget-drag-handle')) {
+           // Maybe show a tooltip "Use drag handle to move"
+           event.preventDefault();
+           return;
+        }
       console.log(`Internal drag start: ${widgetId}`);
       event.dataTransfer.setData('widgetIdInternal', widgetId);
       event.dataTransfer.effectAllowed = 'move';
       setDraggedWidgetId(widgetId);
-      event.currentTarget.style.opacity = '0.5';
+      // event.currentTarget.style.opacity = '0.5'; // Opacity managed by state/CSS now
    };
-  const handleWidgetDragOver = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => { /* ... */
-      event.preventDefault(); event.stopPropagation();
+  const handleWidgetDragOver = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
+      event.preventDefault(); event.stopPropagation(); // Necessary to allow drop
       const targetWidget = widgets.find(w => w.id === targetWidgetId);
-      if (targetWidget?.type === 'header') { setDropTargetId(null); event.currentTarget.classList.remove('drop-target-hover'); return; }
+      if (targetWidget?.type === 'header') { setDropTargetId(null); /* Remove class below */ return; }
       if (draggedWidgetId && draggedWidgetId !== targetWidgetId) {
          setDropTargetId(targetWidgetId);
          setIsDraggingOverContainer(false);
-          event.currentTarget.classList.add('drop-target-hover');
+         // document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
+         // event.currentTarget.classList.add('drop-target-hover'); // Handled by state now
+      } else {
+          setDropTargetId(null); // Hovering over itself
       }
    };
-   const handleWidgetDragEnter = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => { /* ... */
+   const handleWidgetDragEnter = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
        event.preventDefault(); event.stopPropagation();
        const targetWidget = widgets.find(w => w.id === targetWidgetId);
        if (targetWidget?.type === 'header') { return; }
        if (draggedWidgetId && draggedWidgetId !== targetWidgetId) {
             setDropTargetId(targetWidgetId);
             setIsDraggingOverContainer(false);
-            event.currentTarget.classList.add('drop-target-hover');
+            // event.currentTarget.classList.add('drop-target-hover'); // Handled by state now
         }
     };
-  const handleWidgetDragLeave = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => { /* ... */
+  const handleWidgetDragLeave = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
        event.stopPropagation();
+       // Check if the mouse is truly leaving the element or just moving over a child
        if (!event.currentTarget.contains(event.relatedTarget as Node)) {
             if (dropTargetId === targetWidgetId) { setDropTargetId(null); }
-            event.currentTarget.classList.remove('drop-target-hover');
+            // event.currentTarget.classList.remove('drop-target-hover'); // Handled by state now
         }
    };
-   const handleWidgetDrop = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => { /* ... */
+   const handleWidgetDrop = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
        event.preventDefault(); event.stopPropagation();
        const targetWidget = widgets.find(w => w.id === targetWidgetId);
-       if (targetWidget?.type === 'header') { event.currentTarget.classList.remove('drop-target-hover'); handleContainerDrop(event); return; }
+       if (targetWidget?.type === 'header') { handleContainerDrop(event); return; } // Drop on header acts like container drop
        if (draggedWidgetId && draggedWidgetId !== targetWidgetId) { moveWidget(draggedWidgetId, targetWidgetId); }
-       event.currentTarget.classList.remove('drop-target-hover');
-       handleContainerDrop(event);
+       else { handleContainerDrop(event); } // Also handle drops from panel onto a widget
+       // Cleanup is now handled in handleContainerDrop
     };
-  const handleWidgetDragEnd = (event: React.DragEvent<HTMLDivElement>) => { /* ... */
+  const handleWidgetDragEnd = (event: React.DragEvent<HTMLDivElement>) => {
       console.log("Internal drag end");
-      event.currentTarget.style.opacity = '1';
-      document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover'));
+      // event.currentTarget.style.opacity = '1'; // Handled by state/CSS
+      // document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => el.classList.remove('drop-target-hover')); // Handled by state/CSS
       setDraggedWidgetId(null); setDropTargetId(null); setIsDraggingOverContainer(false);
    };
 
 
   // --- Other Handlers ---
-  const handleWidgetClick = ( event: React.MouseEvent<HTMLDivElement>, widgetId: string ) => { /* ... */
-      if ((event.target as HTMLElement).closest('button[aria-label^="Remove"]') || (event.target as HTMLElement).closest('.widget-drag-handle')) { return; }
+  const handleWidgetClick = ( event: React.MouseEvent<HTMLDivElement>, widgetId: string ) => {
+      // Prevent selection if clicking delete button or drag handle
+      if ((event.target as HTMLElement).closest('button[aria-label^="Remove"]') || (event.target as HTMLElement).closest('.widget-drag-handle')) {
+          return;
+      }
       setSelectedWidgetId(widgetId);
       console.log("Selected widget:", widgetId);
   };
-  const removeWidget = (idToRemove: string) => { /* ... */
+  const removeWidget = (idToRemove: string) => {
       if (selectedWidgetId === idToRemove) { setSelectedWidgetId(null); }
       setWidgets((prevWidgets) => prevWidgets.filter((widget) => widget.id !== idToRemove));
       console.log("Removed widget:", idToRemove);
@@ -471,33 +589,58 @@ export function PhonePreview({
                 toast({ variant: 'destructive', title: 'Upload Error', description: 'Could not apply image to the selected widget.' });
            }
            setWidgetIdForUpload(null); // Reset tracker
-           event.target.value = ''; // Reset file input
+           if (event.target) event.target.value = ''; // Reset file input safely
        };
        reader.onerror = () => {
            toast({ variant: 'destructive', title: 'Upload Error', description: 'Failed to read the image file.' });
            setWidgetIdForUpload(null);
-            event.target.value = '';
+           if (event.target) event.target.value = '';
        };
        reader.readAsDataURL(file);
    };
 
    // --- NEW: Geolocation Handler ---
     const handleGetCurrentLocation = async (widgetId: string) => {
-        if (!navigator.geolocation) {
+        if (typeof window === 'undefined' || !navigator.geolocation) {
             toast({ variant: 'destructive', title: 'Geolocation Error', description: 'Geolocation is not supported by your browser.' });
             return;
         }
 
+        toast({ title: 'Fetching Location...', description: 'Please wait.' });
+
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const { latitude, longitude } = position.coords;
-                const address = `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`; // Simple display
-                console.log(`Got location for ${widgetId}:`, latitude, longitude);
-                updateWidgetConfig(widgetId, { address: address }); // Update the map widget's address
-                 toast({ title: 'Location Found', description: `Map address updated.` });
+                // Attempt to reverse geocode (requires Google Maps API key or another service)
+                 // For now, just display coordinates
+                 const address = `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                 console.log(`Got location for ${widgetId}:`, latitude, longitude);
+                updateWidgetConfig(widgetId, { address: address, useCurrentLocation: false }); // Update address and reset flag
+                 toast({ title: 'Location Found', description: `Map address updated to coordinates.` });
+
+                // Example using a hypothetical geocoding service (replace with actual implementation)
+                /*
+                fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=YOUR_API_KEY`)
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.results && data.results[0]) {
+                      const formattedAddress = data.results[0].formatted_address;
+                      updateWidgetConfig(widgetId, { address: formattedAddress, useCurrentLocation: false });
+                      toast({ title: 'Location Found', description: `Map address updated.` });
+                    } else {
+                      throw new Error('No address found for coordinates.');
+                    }
+                  })
+                  .catch(error => {
+                    console.error("Geocoding error:", error);
+                    updateWidgetConfig(widgetId, { address: `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, useCurrentLocation: false }); // Fallback to coords
+                    toast({ variant: 'destructive', title: 'Geocoding Error', description: 'Could not find address. Displaying coordinates.' });
+                  });
+                */
             },
             (error) => {
                  console.error("Geolocation error:", error);
+                 updateWidgetConfig(widgetId, { useCurrentLocation: false }); // Reset flag on error
                  let message = 'Could not get your location.';
                  if (error.code === error.PERMISSION_DENIED) {
                      message = 'Geolocation permission denied. Please enable it in your browser settings.';
@@ -529,34 +672,37 @@ export function PhonePreview({
         return false; // Don't display if conditions not met
     };
 
+    // --- Conditional Rendering based on client-side mount and display condition ---
+     if (!isClient) {
+         // Render nothing or a basic placeholder on the server
+         return <div key={widget.id} className="h-10 animate-pulse bg-muted rounded mb-1"></div>; // Simple SSR placeholder
+     }
+
      if (!shouldDisplay()) {
-        // Optionally render a placeholder in edit mode to show the hidden widget
-        if (isClient) { // Only render placeholder on client during edit
-             return (
-                <div
-                    key={widget.id}
-                    id={`widget-${widget.id}`}
-                    onClick={(e) => handleWidgetClick(e, widget.id)} // Still allow selection
-                    className={cn(
-                        "relative group border-2 p-2 rounded-lg transition-all duration-150 ease-in-out",
-                        "border-dashed border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400",
-                         isSelected ? 'ring-2 ring-primary ring-offset-1 z-10' : 'hover:border-accent',
-                         "mb-1" // Basic margin
-                    )}
-                     role="button" tabIndex={0} aria-label={`Widget: ${widget.name || widget.type}. Hidden (${widget.config.displayCondition}). Click to configure.`}
-                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}}
-                 >
-                    <p className="text-xs italic text-center">
-                        Widget "{widget.name || widget.type}" is hidden (Condition: {widget.config.displayCondition})
-                    </p>
-                    {/* Keep delete button accessible */}
-                    <UiButton variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-50 group-hover:opacity-100 z-10 rounded-full shadow-md" onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }} aria-label={`Remove ${widget.name || widget.type} widget`} tabIndex={isSelected ? 0 : -1}>
-                        <Trash2 className="h-3 w-3" />
-                    </UiButton>
-                </div>
-            );
-        }
-        return null; // Don't render on server or if not in edit mode preview
+        // Render hidden placeholder on client during edit mode
+         return (
+            <div
+                key={widget.id}
+                id={`widget-${widget.id}`}
+                onClick={(e) => handleWidgetClick(e, widget.id)} // Still allow selection
+                className={cn(
+                    "relative group border-2 p-2 rounded-lg transition-all duration-150 ease-in-out",
+                    "border-dashed border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                     isSelected ? 'ring-2 ring-primary ring-offset-1 z-10' : 'hover:border-accent',
+                     "mb-1" // Basic margin
+                )}
+                 role="button" tabIndex={0} aria-label={`Widget: ${widget.name || widget.type}. Hidden (${widget.config.displayCondition}). Click to configure.`}
+                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}}
+             >
+                <p className="text-xs italic text-center">
+                    Widget "{widget.name || widget.type}" is hidden (Condition: {widget.config.displayCondition})
+                </p>
+                {/* Keep delete button accessible */}
+                <UiButton variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-50 group-hover:opacity-100 z-10 rounded-full shadow-md" onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }} aria-label={`Remove ${widget.name || widget.type} widget`} tabIndex={isSelected ? 0 : -1}>
+                    <Trash2 className="h-3 w-3" />
+                </UiButton>
+            </div>
+        );
      }
 
     const config: AllWidgetConfigs & BaseWidgetConfig = {
@@ -626,11 +772,11 @@ export function PhonePreview({
                      </h1>
                      <div className="flex items-center gap-1">
                          {headerConfig.showCartIcon && (
-                             <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" onClick={(e) => handleNavigation(e, '/cart')}>
-                                <ShoppingCart className="h-5 w-5" />
-                                {/* Basic badge simulation */}
-                                <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
-                            </UiButton>
+                              <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" onClick={(e) => handleNavigation(e, '/cart')}>
+                                    <ShoppingCart className="h-5 w-5" />
+                                    {/* Basic badge simulation */}
+                                    <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
+                                </UiButton>
                          )}
                           {headerConfig.showAuthButton && (
                              <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground" onClick={(e) => handleNavigation(e, '/auth')}>
@@ -662,11 +808,6 @@ export function PhonePreview({
                     )}
                     data-ai-hint="website banner placeholder"
                  >
-                     {/* Link overlay */}
-                     {/* {BannerElement === 'div' && bannerConfig.linkUrl ? (
-                         <a onClick={(e) => handleNavigation(e, bannerConfig.linkUrl!)} className="absolute inset-0 z-10 cursor-pointer" aria-label={bannerConfig.altText || 'Banner link'}></a>
-                     ) : null} */}
-
                     {bannerConfig.imageUrl ? (
                         <Image
                             key={bannerConfig.imageUrl} // Re-render if URL changes
@@ -690,6 +831,7 @@ export function PhonePreview({
                         {!bannerConfig.imageUrl && <span className="text-[10px] mt-0.5">No Image URL</span>}
                     </div>
                      {/* --- NEW: Image Upload Button --- */}
+                     {/* Check for imageUploadEnabled flag before rendering */}
                      {bannerConfig.imageUploadEnabled && (
                          <UiButton
                             variant="secondary"
@@ -702,13 +844,14 @@ export function PhonePreview({
                         </UiButton>
                      )}
                  </BannerElement>
-                 {/* Hidden file input */}
+                 {/* Hidden file input - Moved outside the BannerElement for simplicity */}
                  <input
                      type="file"
                      ref={fileInputRef}
                      onChange={handleFileChange}
                      className="hidden"
                      accept="image/*"
+                     id={`fileInput-${widget.id}`} // Unique ID might be useful
                  />
                 </div>
             );
@@ -768,11 +911,11 @@ export function PhonePreview({
                                             <Image src={`https://picsum.photos/seed/list${i}/100/100`} alt={`Item ${i+1}`} width={100} height={100} className="w-full h-full object-cover"/>
                                          </div>
                                      }
-                                     <div className="flex-1 space-y-1">
-                                          <div className={cn("h-3 bg-muted-foreground/80 rounded-full font-medium", itemLayout === 'simple' ? 'w-5/6' : 'w-full')}>Item Title {i + 1}</div>
-                                          {itemLayout !== 'simple' && <div className={cn("h-2.5 bg-muted-foreground/50 rounded-full text-xs", 'w-2/3')}>Short description...</div>}
+                                     <div className="flex-1 space-y-1 min-w-0"> {/* Added min-w-0 */}
+                                          <div className={cn("h-3 bg-muted-foreground/80 rounded-full font-medium truncate", itemLayout === 'simple' ? 'w-5/6' : 'w-full')}>Item Title {i + 1} - Very Long Title That Might Overflow Otherwise</div>
+                                          {itemLayout !== 'simple' && <div className={cn("h-2.5 bg-muted-foreground/50 rounded-full text-xs truncate", 'w-2/3')}>Short description that could also be long...</div>}
                                      </div>
-                                      {itemLayout === 'detailed' && <UiButton variant="ghost" size="icon" className="h-6 w-6 ml-auto"><ChevronRight className="h-4 w-4"/></UiButton>}
+                                      {itemLayout === 'detailed' && <UiButton variant="ghost" size="icon" className="h-6 w-6 ml-auto flex-shrink-0"><ChevronRight className="h-4 w-4"/></UiButton>}
                                  </div>
                              ))}
                           </div>
@@ -826,7 +969,7 @@ export function PhonePreview({
                      return (
                          <>
                             <p className="text-[10px] text-muted-foreground italic mb-1">(Rich Text Enabled)</p>
-                             <p className={cn( textSizeClass, textColorClass, fontWeightClass, fontStyleClass, 'break-words' )}>
+                             <p className={cn( textSizeClass, textColorClass, fontWeightClass, fontStyleClass, 'break-words whitespace-pre-wrap' )}>
                                 {textConfig.content || "Enter text..."}
                             </p>
                          </>
@@ -834,7 +977,7 @@ export function PhonePreview({
                  }
                  // Plain text rendering
                  return (
-                      <p className={cn( textSizeClass, textColorClass, fontWeightClass, fontStyleClass, 'break-words' )}>
+                      <p className={cn( textSizeClass, textColorClass, fontWeightClass, fontStyleClass, 'break-words whitespace-pre-wrap' )}>
                          {textConfig.content || "Enter text..."}
                      </p>
                  );
@@ -856,11 +999,14 @@ export function PhonePreview({
 
             content = (
                 <div className={cn("flex w-full py-1", btnAlignClass)}>
-                    <ButtonElement {...buttonProps} className={cn({'w-full': buttonConfig.alignment === 'full'})}>
+                    {/* Prevent interaction if button is just a placeholder div */}
+                    <ButtonElement {...buttonProps} className={cn({'w-full': buttonConfig.alignment === 'full', 'pointer-events-none': ButtonElement === 'div'})}>
                         <UiButton
                             variant={buttonConfig.variant || 'default'}
                             size={buttonConfig.size || 'default'}
-                             className={cn({'w-full': buttonConfig.alignment === 'full'}, 'cursor-pointer')} // Add cursor-pointer
+                             className={cn({'w-full': buttonConfig.alignment === 'full'}, buttonConfig.linkUrl ? 'cursor-pointer' : 'cursor-default')} // Adjust cursor based on link
+                             aria-disabled={ButtonElement === 'div'} // Indicate non-interactive if it's a div
+                             tabIndex={ButtonElement === 'div' ? -1 : 0} // Remove from tab order if non-interactive
                             {...(buttonConfig.size === 'icon' ? { 'aria-label': buttonConfig.buttonText || 'Icon button' } : {})}
                         >
                              {buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")}
@@ -886,19 +1032,29 @@ export function PhonePreview({
             break;
          case 'map':
             const mapConfig = config as MapConfig;
-            const getMapStyleBg = (style: string | undefined) => { /* ... */ return 'bg-blue-200 dark:bg-blue-900'; } // Simplified
+            const getMapStyleBg = (style: string | undefined) => { return 'bg-blue-200 dark:bg-blue-900'; } // Simplified
 
-             // Effect to handle 'useCurrentLocation'
+             // Effect to handle 'useCurrentLocation' - Trigger only when flag is true
             useEffect(() => {
-                if (mapConfig.useCurrentLocation && widget.id) {
-                    handleGetCurrentLocation(widget.id);
-                }
-                 // Intentionally not adding handleGetCurrentLocation to deps to avoid loop
+                // Ensure this effect runs only for the specific map widget instance
+                if (mapConfig.useCurrentLocation && widget.id === selectedWidgetId) { // Trigger only if selected or based on some logic
+                     // Check if address is already coordinates, maybe don't refetch
+                     if (!mapConfig.address?.startsWith('Coords:')) {
+                         handleGetCurrentLocation(widget.id);
+                     } else {
+                         console.log("Address is already coordinates, skipping refetch for", widget.id);
+                         // Optionally reset the flag if needed, or handle in config panel
+                         // updateWidgetConfig(widget.id, { useCurrentLocation: false });
+                     }
+                 }
+                 // Intentionally limiting dependencies to avoid loops. handleGetCurrentLocation dependency might be needed if it changes.
                  // eslint-disable-next-line react-hooks/exhaustive-deps
-            }, [mapConfig.useCurrentLocation, widget.id]);
+            }, [mapConfig.useCurrentLocation, widget.id, selectedWidgetId /*, handleGetCurrentLocation */]);
+
 
             content = (
                 <div className={cn("relative h-48 bg-muted rounded border border-dashed border-input overflow-hidden", getMapStyleBg(mapConfig.mapStyle))}>
+                   {/* Client-side only rendering for map to avoid hydration errors */}
                    {isClient ? (
                     <div className="w-full h-full flex flex-col items-center justify-center text-white/90 p-2 relative">
                         <MapPin className="w-10 h-10 mb-2 text-red-500" />
@@ -911,7 +1067,7 @@ export function PhonePreview({
                             variant="secondary"
                             size="icon"
                             className="absolute bottom-2 right-2 z-10 h-7 w-7"
-                            onClick={(e) => {e.stopPropagation(); handleGetCurrentLocation(widget.id)}}
+                            onClick={(e) => {e.stopPropagation(); updateWidgetConfig(widget.id, {useCurrentLocation: true})}} // Set flag to true on click
                             aria-label="Get current location"
                             title="Use Current Location"
                         >
@@ -929,6 +1085,7 @@ export function PhonePreview({
              const aspectRatioClassVideo = getAspectRatioClass(videoConfig.aspectRatio);
              content = (
                  <div className={cn("relative bg-black rounded border border-dashed border-input overflow-hidden", aspectRatioClassVideo || 'h-40')}>
+                     {/* Client-side only rendering */}
                      {isClient ? (
                          videoConfig.videoUrl ? (
                              // Basic iframe for common video platforms (YouTube, Vimeo)
@@ -954,68 +1111,8 @@ export function PhonePreview({
 
          // --- NEW WIDGET RENDERING ---
         case 'carousel':
-             const carouselConfig = config as CarouselConfig;
-             const { currentIndex, nextSlide, prevSlide, goToSlide } = useCarousel(carouselConfig.items?.length || 0, carouselConfig.autoplay ?? false, carouselConfig.delay ?? 3000);
-             const aspectRatioClassCarousel = getAspectRatioClass(carouselConfig.aspectRatio);
-
-             if (!carouselConfig.items || carouselConfig.items.length === 0) {
-                 return renderPlaceholder(GalleryHorizontalEnd, "Image Carousel", "Add items in configuration");
-             }
-
-             content = (
-                 <div className={cn("relative w-full overflow-hidden rounded bg-muted", aspectRatioClassCarousel || 'h-48')}>
-                    {/* Slides */}
-                    <div className="relative h-full w-full">
-                        {carouselConfig.items.map((item, index) => (
-                            <div
-                                key={item.id}
-                                className={cn(
-                                    "absolute inset-0 transition-opacity duration-700 ease-in-out",
-                                    index === currentIndex ? 'opacity-100 z-10' : 'opacity-0 z-0'
-                                )}
-                            >
-                                <Image
-                                    src={item.imageUrl}
-                                    alt={item.altText || `Slide ${index + 1}`}
-                                    fill
-                                    className="object-cover"
-                                    sizes="(max-width: 768px) 100vw, 33vw"
-                                    priority={index < 2}
-                                />
-                                {/* Optional Link Overlay */}
-                                {item.linkUrl && (
-                                     <a onClick={(e) => handleNavigation(e, item.linkUrl!)} className="absolute inset-0 cursor-pointer" aria-label={item.altText || 'Carousel link'}></a>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Navigation Arrows */}
-                    {(carouselConfig.showArrows && carouselConfig.items.length > 1) && (
-                        <>
-                            <UiButton variant="secondary" size="icon" className="absolute left-2 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full opacity-70 hover:opacity-100" onClick={prevSlide}> <ChevronLeft className="h-5 w-5" /> </UiButton>
-                            <UiButton variant="secondary" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full opacity-70 hover:opacity-100" onClick={nextSlide}> <ChevronRight className="h-5 w-5" /> </UiButton>
-                        </>
-                    )}
-
-                    {/* Dots Indicator */}
-                    {(carouselConfig.showDots && carouselConfig.items.length > 1) && (
-                        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex space-x-2">
-                            {carouselConfig.items.map((_, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => goToSlide(index)}
-                                    className={cn(
-                                        "h-2 w-2 rounded-full transition-colors",
-                                        index === currentIndex ? 'bg-primary' : 'bg-white/50 hover:bg-white/80'
-                                    )}
-                                    aria-label={`Go to slide ${index + 1}`}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </div>
-             );
+             // Render the dedicated CarouselWidget component
+             content = <CarouselWidget config={config as CarouselConfig} handleNavigation={handleNavigation} />;
              break;
 
         case 'audio':
@@ -1023,16 +1120,20 @@ export function PhonePreview({
             content = (
                  audioConfig.audioUrl ? (
                      <div className="p-2 bg-card border rounded shadow-sm">
-                         <audio
-                            key={audioConfig.audioUrl} // Re-render if URL changes
-                             src={audioConfig.audioUrl}
-                             controls={audioConfig.showControls}
-                             autoPlay={audioConfig.autoplay}
-                             loop={audioConfig.loop}
-                             className="w-full"
-                         >
-                             Your browser does not support the audio element.
-                         </audio>
+                        {isClient ? (
+                             <audio
+                                key={audioConfig.audioUrl} // Re-render if URL changes
+                                 src={audioConfig.audioUrl}
+                                 controls={audioConfig.showControls}
+                                 autoPlay={audioConfig.autoplay}
+                                 loop={audioConfig.loop}
+                                 className="w-full"
+                             >
+                                 Your browser does not support the audio element.
+                             </audio>
+                         ) : (
+                             <div className="h-10 w-full bg-muted rounded animate-pulse"></div> // SSR Placeholder
+                         )}
                          <p className="text-xs text-muted-foreground truncate mt-1 px-1" title={audioConfig.audioUrl}>{audioConfig.audioUrl.split('/').pop()}</p>
                      </div>
                  ) : (
@@ -1048,33 +1149,41 @@ export function PhonePreview({
 
              content = (
                  <div className={cn("p-3 border border-dashed rounded border-input text-center", isExpired ? 'bg-muted' : 'bg-card')}>
-                     {isExpired ? (
-                         <p className="font-medium text-muted-foreground">{countdownConfig.expiredMessage || 'Event has started!'}</p>
-                     ) : (
-                         displayStyle === 'blocks' ? (
-                             <div className="flex justify-center space-x-2 text-center">
-                                <div className="flex flex-col items-center p-1 min-w-[40px]">
-                                    <span className="text-lg font-bold text-primary">{String(timeLeft.days).padStart(2, '0')}</span>
-                                    <span className="text-[10px] text-muted-foreground uppercase">{countdownConfig.labelDays || 'Days'}</span>
+                    {/* Client-side only rendering for timer values */}
+                    {isClient ? (
+                         isExpired ? (
+                            <p className="font-medium text-muted-foreground">{countdownConfig.expiredMessage || 'Event has started!'}</p>
+                         ) : (
+                             displayStyle === 'blocks' ? (
+                                <div className="flex justify-center space-x-1 sm:space-x-2 text-center">
+                                    <div className="flex flex-col items-center p-1 min-w-[35px] sm:min-w-[40px]">
+                                        <span className="text-base sm:text-lg font-bold text-primary">{String(timeLeft.days).padStart(2, '0')}</span>
+                                        <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase">{countdownConfig.labelDays || 'Days'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 min-w-[35px] sm:min-w-[40px]">
+                                        <span className="text-base sm:text-lg font-bold text-primary">{String(timeLeft.hours).padStart(2, '0')}</span>
+                                        <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase">{countdownConfig.labelHours || 'Hours'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 min-w-[35px] sm:min-w-[40px]">
+                                        <span className="text-base sm:text-lg font-bold text-primary">{String(timeLeft.minutes).padStart(2, '0')}</span>
+                                        <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase">{countdownConfig.labelMinutes || 'Mins'}</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 min-w-[35px] sm:min-w-[40px]">
+                                        <span className="text-base sm:text-lg font-bold text-primary">{String(timeLeft.seconds).padStart(2, '0')}</span>
+                                        <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase">{countdownConfig.labelSeconds || 'Secs'}</span>
+                                    </div>
                                 </div>
-                                 <div className="flex flex-col items-center p-1 min-w-[40px]">
-                                    <span className="text-lg font-bold text-primary">{String(timeLeft.hours).padStart(2, '0')}</span>
-                                    <span className="text-[10px] text-muted-foreground uppercase">{countdownConfig.labelHours || 'Hours'}</span>
-                                </div>
-                                 <div className="flex flex-col items-center p-1 min-w-[40px]">
-                                    <span className="text-lg font-bold text-primary">{String(timeLeft.minutes).padStart(2, '0')}</span>
-                                     <span className="text-[10px] text-muted-foreground uppercase">{countdownConfig.labelMinutes || 'Mins'}</span>
-                                </div>
-                                 <div className="flex flex-col items-center p-1 min-w-[40px]">
-                                    <span className="text-lg font-bold text-primary">{String(timeLeft.seconds).padStart(2, '0')}</span>
-                                     <span className="text-[10px] text-muted-foreground uppercase">{countdownConfig.labelSeconds || 'Secs'}</span>
-                                </div>
-                             </div>
-                         ) : ( // Inline style
-                              <p className="font-medium text-primary">
-                                 {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m {timeLeft.seconds}s
-                             </p>
+                             ) : ( // Inline style
+                                <p className="font-medium text-primary">
+                                     {timeLeft.days > 0 && `${timeLeft.days}d `}
+                                     {timeLeft.hours > 0 && `${timeLeft.hours}h `}
+                                     {timeLeft.minutes > 0 && `${timeLeft.minutes}m `}
+                                     {timeLeft.seconds}s
+                                 </p>
+                             )
                          )
+                     ) : (
+                         <div className="h-10 w-full bg-muted rounded animate-pulse"></div> // SSR Placeholder
                      )}
                  </div>
              );
@@ -1101,7 +1210,7 @@ export function PhonePreview({
              const embedUrl = getEmbedUrl();
 
              content = (
-                embedUrl ? (
+                embedUrl && isClient ? ( // Render iframe only on client
                     <div className="h-64 w-full border rounded overflow-hidden bg-muted">
                          <iframe
                             key={embedUrl} // Re-render iframe if URL changes
@@ -1110,6 +1219,7 @@ export function PhonePreview({
                             className="w-full h-full border-0"
                              // Sandbox for security, adjust permissions as needed by the embed provider
                             sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
+                            loading="lazy" // Lazy load iframe
                          />
                     </div>
                  ) : (
@@ -1121,12 +1231,14 @@ export function PhonePreview({
         case 'divider':
              const dividerConfig = config as DividerConfig;
              const borderStyle = `border-${dividerConfig.style || 'solid'}`;
-             const thickness = `border-t-${dividerConfig.thickness === 1 ? '[1px]' : dividerConfig.thickness || '[1px]'}`; // Use arbitrary value for thickness > 1
+             // Use arbitrary value syntax for thickness
+             const thicknessClass = `border-t-[${dividerConfig.thickness || 1}px]`;
              const colorClass = `border-${dividerConfig.color === 'border' ? 'border' : dividerConfig.color || 'border'}`;
 
             content = (
-                 <div className={cn("w-full", getMarginClass(dividerConfig.marginTop, 'mt'), getMarginClass(dividerConfig.marginBottom, 'mb'))}>
-                     <hr className={cn("w-full", borderStyle, thickness, colorClass)} />
+                 // The divider itself doesn't need margins in its own content div, margins are handled by the wrapper
+                 <div className={cn("w-full")}>
+                     <hr className={cn("w-full", borderStyle, thicknessClass, colorClass)} />
                 </div>
             );
             break;
@@ -1151,7 +1263,8 @@ export function PhonePreview({
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}}
              >
                   <div className="widget-content"> {content} </div>
-                  <div className="absolute inset-0 bg-transparent group-hover:bg-black/10 dark:group-hover:bg-white/5 transition-colors duration-150 pointer-events-none"></div>
+                  {/* Overlay for hover effect */}
+                  <div className="absolute inset-0 bg-transparent group-hover:bg-black/5 dark:group-hover:bg-white/5 transition-colors duration-150 pointer-events-none rounded-lg"></div>
                   <UiButton variant="destructive" size="icon" className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 focus-within:opacity-100 group-focus:opacity-100 transition-opacity z-30 rounded-full shadow-md" onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }} aria-label={`Remove ${widget.name || widget.type} widget`} tabIndex={isSelected ? 0 : -1}>
                     <Trash2 className="h-4 w-4" />
                   </UiButton>
@@ -1165,15 +1278,35 @@ export function PhonePreview({
         key={widget.id} id={`widget-${widget.id}`} onClick={(e) => handleWidgetClick(e, widget.id)}
         className={commonWrapperClasses} role="button" tabIndex={0} aria-label={`Widget: ${widget.name || widget.type}. ${isSelected ? 'Selected.' : ''} Click to configure, drag handle to reorder.`}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}}
-        draggable={widget.type !== 'header'}
-        onDragStart={(e) => handleWidgetDragStart(e, widget.id)} onDragOver={(e) => handleWidgetDragOver(e, widget.id)}
-        onDragEnter={(e) => handleWidgetDragEnter(e, widget.id)} onDragLeave={(e) => handleWidgetDragLeave(e, widget.id)}
-        onDrop={(e) => handleWidgetDrop(e, widget.id)} onDragEnd={handleWidgetDragEnd}
+        draggable={widget.type !== 'header'} // Only non-header widgets are draggable
+        onDragStart={(e) => handleWidgetDragStart(e, widget.id)}
+        onDragOver={(e) => handleWidgetDragOver(e, widget.id)}
+        onDragEnter={(e) => handleWidgetDragEnter(e, widget.id)}
+        onDragLeave={(e) => handleWidgetDragLeave(e, widget.id)}
+        onDrop={(e) => handleWidgetDrop(e, widget.id)}
+        onDragEnd={handleWidgetDragEnd}
       >
-        {isDropTarget && widget.type !== 'header' && ( <div className="absolute top-0 left-0 right-0 h-1 bg-accent -mt-1.5 z-20 pointer-events-none"></div> )}
-        <div className="widget-content flex items-center">
+        {/* Drop indicator line */}
+        {isDropTarget && widget.type !== 'header' && (
+             <div className="absolute top-0 left-0 right-0 h-1 bg-accent -mt-1.5 z-20 pointer-events-none rounded-full animate-pulse"></div>
+         )}
+        <div className="widget-content flex items-start"> {/* Changed to items-start */}
              {widget.type !== 'header' && (
-                 <div className="widget-drag-handle mr-2 p-1 cursor-grab text-muted-foreground hover:text-foreground touch-none" aria-label={`Drag handle for ${widget.name || widget.type} widget`} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} >
+                 <div
+                     className="widget-drag-handle mr-1 p-1 cursor-grab text-muted-foreground hover:text-foreground touch-none opacity-60 hover:opacity-100 transition-opacity"
+                     aria-label={`Drag handle for ${widget.name || widget.type} widget`}
+                     onClick={(e) => e.stopPropagation()} // Prevent selection when clicking handle
+                     onMouseDown={(e) => e.stopPropagation()} // Helps with text selection prevention
+                     draggable // Make handle itself draggable to initiate widget drag
+                     onDragStart={(e) => {
+                        // Need to proxy the drag start to the parent wrapper
+                        const parentWrapper = (e.target as HTMLElement).closest('.widget-wrapper');
+                        if (parentWrapper instanceof HTMLDivElement) {
+                            handleWidgetDragStart(e as any, parentWrapper.id.replace('widget-', ''));
+                        }
+                     }}
+                     onDragEnd={(e) => handleWidgetDragEnd(e as any)} // Need drag end here too
+                    >
                     <GripVertical className="h-5 w-5" />
                  </div>
              )}
@@ -1183,7 +1316,8 @@ export function PhonePreview({
         </div>
          {widget.type !== 'header' && (
             <>
-                <div className="absolute inset-0 bg-transparent group-hover:bg-black/10 dark:group-hover:bg-white/5 transition-colors duration-150 rounded-lg pointer-events-none"></div>
+                 {/* Overlay for hover effect */}
+                 <div className="absolute inset-0 bg-transparent group-hover:bg-black/5 dark:group-hover:bg-white/5 transition-colors duration-150 rounded-lg pointer-events-none"></div>
                 <UiButton variant="destructive" size="icon" className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 focus-within:opacity-100 group-focus:opacity-100 transition-opacity z-10 rounded-full shadow-md" onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }} aria-label={`Remove ${widget.name || widget.type} widget`} tabIndex={isSelected ? 0 : -1}>
                   <Trash2 className="h-4 w-4" />
                 </UiButton>
@@ -1225,7 +1359,7 @@ export function PhonePreview({
                   'w-full flex-1 p-2 overflow-y-auto scroll-smooth transition-colors duration-200',
                    (isDraggingOverContainer || (draggedWidgetId && !dropTargetId))
                     ? 'bg-accent/10 ring-2 ring-accent ring-inset'
-                    : 'bg-white dark:bg-neutral-900'
+                    : 'bg-white dark:bg-neutral-900' // Use a slightly off-white/dark background
                 )}
                 id="phone-preview-widgets-area"
                 aria-label="Phone preview area. Drag widgets here to add, or drag existing widgets to reorder."
@@ -1241,10 +1375,14 @@ export function PhonePreview({
                    <div className="flex flex-col items-center justify-center h-full text-center text-accent font-medium pointer-events-none"> <p>Drop widget here</p> </div>
                 )}
 
-                <div className={cn("transition-opacity duration-150", isDraggingOverContainer ? 'opacity-50' : 'opacity-100')} aria-live="polite" aria-label="App content widgets">
-                   {widgets.filter(w => w.type !== 'header').map(renderWidgetContent)}
-                </div>
+                {/* Render widgets only on client */}
+                 {isClient && (
+                     <div className={cn("transition-opacity duration-150", isDraggingOverContainer ? 'opacity-50' : 'opacity-100')} aria-live="polite" aria-label="App content widgets">
+                         {widgets.filter(w => w.type !== 'header').map(renderWidgetContent)}
+                     </div>
+                 )}
 
+                 {/* Drop zone indicator at the end */}
                  {(isDraggingOverContainer || (draggedWidgetId && !dropTargetId)) && widgets.filter(w => w.type !== 'header').length > 0 && (
                    <div className="mt-2 p-3 border-2 border-dashed border-accent rounded text-center text-accent font-medium text-sm bg-accent/5 pointer-events-none"> Drop here to add to end </div>
                 )}
@@ -1253,15 +1391,13 @@ export function PhonePreview({
          ) : (
             // Render specific page content based on URL
             <div className="flex-1 overflow-y-auto">
-                {currentPreviewUrl === '/menu' && <PreviewPagePlaceholder title="Menu Page" icon={Menu} backAction={() => setCurrentPreviewUrl('/')} />}
-                {currentPreviewUrl === '/cart' && <PreviewPagePlaceholder title="Shopping Cart" icon={ShoppingCart} backAction={() => setCurrentPreviewUrl('/')} />}
-                {currentPreviewUrl === '/auth' && <PreviewPagePlaceholder title="Authentication" icon={User} backAction={() => setCurrentPreviewUrl('/')} />}
-                {currentPreviewUrl === '/previous-page' && <PreviewPagePlaceholder title="Previous Page" icon={ArrowLeft} backAction={() => setCurrentPreviewUrl('/')} />}
-                 {/* Add more routes as needed (e.g., product pages, item details) */}
-                 {currentPreviewUrl.startsWith('/product/') && <PreviewPagePlaceholder title={`Product ${currentPreviewUrl.split('/').pop()}`} icon={LayoutGrid} backAction={() => setCurrentPreviewUrl('/')} />}
-                 {currentPreviewUrl.startsWith('/item/') && <PreviewPagePlaceholder title={`Item ${currentPreviewUrl.split('/').pop()}`} icon={Rows} backAction={() => setCurrentPreviewUrl('/')} />}
-                 {currentPreviewUrl === '/products' && <PreviewPagePlaceholder title="All Products" icon={LayoutGrid} backAction={() => setCurrentPreviewUrl('/')} />}
-                 {currentPreviewUrl === '/categories' && <PreviewPagePlaceholder title="Categories" icon={Rows} backAction={() => setCurrentPreviewUrl('/')} />}
+                {/* Use PreviewPagePlaceholder for all internal navigation targets */}
+                <PreviewPagePlaceholder
+                    title={getPageTitle(currentPreviewUrl)}
+                    icon={getPageIcon(currentPreviewUrl)}
+                    backAction={() => setCurrentPreviewUrl('/')}
+                    currentUrl={currentPreviewUrl} // Pass URL for potential context
+                />
             </div>
          )}
       </div>
@@ -1275,8 +1411,9 @@ interface PreviewPagePlaceholderProps {
     title: string;
     icon: React.ElementType;
     backAction: () => void;
+    currentUrl: string; // Add current URL for context
 }
-const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, icon: Icon, backAction }) => {
+const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, icon: Icon, backAction, currentUrl }) => {
     return (
          <div className="flex flex-col h-full bg-background">
              {/* Simple Header Simulation */}
@@ -1293,10 +1430,42 @@ const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, 
                 <p className="text-sm font-medium mb-1">{title}</p>
                 <p className="text-xs">This is a preview of the "{title}" page.</p>
                  <p className="text-xs mt-2">Content and customization for this page type would be configured separately.</p>
+                 {/* Example: Show dynamic content based on URL */}
+                 {currentUrl.startsWith('/product/') && (
+                    <p className="text-xs mt-2 italic">Loading details for Product ID: {currentUrl.split('/').pop()}</p>
+                 )}
+                 {currentUrl.startsWith('/item/') && (
+                    <p className="text-xs mt-2 italic">Loading details for Item ID: {currentUrl.split('/').pop()}</p>
+                 )}
                  <UiButton variant="outline" size="sm" className="mt-4" onClick={backAction}>
                      Go Back
                  </UiButton>
              </div>
         </div>
      );
+ };
+
+ // Helper functions to determine page title and icon based on URL
+ const getPageTitle = (url: string): string => {
+    if (url === '/menu') return 'Menu';
+    if (url === '/cart') return 'Shopping Cart';
+    if (url === '/auth') return 'Login / Sign Up';
+    if (url === '/previous-page') return 'Previous Page';
+    if (url.startsWith('/product/')) return `Product Details`;
+    if (url.startsWith('/item/')) return `Item Details`;
+    if (url === '/products') return 'All Products';
+    if (url === '/categories') return 'Categories';
+    return 'Page Preview'; // Default
+ };
+
+ const getPageIcon = (url: string): React.ElementType => {
+    if (url === '/menu') return Menu;
+    if (url === '/cart') return ShoppingCart;
+    if (url === '/auth') return User;
+    if (url === '/previous-page') return ArrowLeft;
+    if (url.startsWith('/product/')) return LayoutGrid;
+    if (url.startsWith('/item/')) return Rows;
+     if (url === '/products') return LayoutGrid;
+    if (url === '/categories') return Rows;
+    return Smartphone; // Default icon
  };
