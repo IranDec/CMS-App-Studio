@@ -7,7 +7,7 @@ import { useForm, Controller, useFieldArray } from 'react-hook-form';
 import { z } from 'zod';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button'; // Import buttonVariants
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
@@ -26,7 +26,8 @@ import type { DroppedWidget, AllWidgetConfigs, CarouselItem } from '@/types/widg
 import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults
 import { cn } from '@/lib/utils'; // Import cn utility
 import { ThemeSelector } from './theme-selector'; // Import ThemeSelector
-import { FileImage, X, Plus, GripVertical, Wand2, Text, Eye, EyeOff, Css3 } from 'lucide-react'; // Import icons
+import { FileImage, X, Plus, GripVertical, Wand2, Text, Eye, EyeOff, ChevronRight } from 'lucide-react'; // Import icons (Removed Css3)
+import { Css3 } from '@/components/ui/css3'; // Import custom Css3 icon
 import { appTemplateDefaults } from '@/lib/widget-defaults'; // Import templates
 import {
     Dialog,
@@ -38,6 +39,8 @@ import {
     DialogTrigger,
     DialogClose,
   } from "@/components/ui/dialog" // Import Dialog
+import { useToast } from '@/hooks/use-toast'; // Import useToast
+
 
 interface ConfigurationPanelProps {
   selectedWidget: DroppedWidget | null;
@@ -249,6 +252,7 @@ export function ConfigurationPanel({
     setCurrentPreviewUrl,
  }: ConfigurationPanelProps) {
     const [activeAccordionItem, setActiveAccordionItem] = useState<string>("specific-settings");
+    const { toast } = useToast(); // Initialize toast hook
 
     // Determine the correct schema based on the selected widget type
     const getSchemaForType = (type: string | undefined) => {
@@ -743,7 +747,7 @@ export function ConfigurationPanel({
                         <div className="grid grid-cols-2 gap-4 py-4">
                             {Object.keys(appTemplateDefaults).map((key) => (
                                  <DialogClose key={key} asChild>
-                                     <Button variant="secondary" onClick={() => loadTemplate(key)}>
+                                     <Button variant="secondary" onClick={() => loadTemplate(key as keyof typeof appTemplateDefaults)}>
                                          {key.charAt(0).toUpperCase() + key.slice(1)}
                                      </Button>
                                 </DialogClose>
@@ -809,3 +813,5 @@ export function ConfigurationPanel({
         </div>
     );
 }
+
+    
