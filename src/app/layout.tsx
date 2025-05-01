@@ -31,10 +31,11 @@ export default function RootLayout({
 }>) {
   return (
     // Add suppressHydrationWarning to ignore browser extension modifications
-    <html lang="en" suppressHydrationWarning={true}>
+    // Moved suppressHydrationWarning to body tag as error seems related to attributes added there
+    <html lang="en">
       <body
+        suppressHydrationWarning={true} // Moved from html to body
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased`} // Use imported objects directly
-        // Remove suppressHydrationWarning from body as it's on html
       >
         <ThemeProvider
           attribute="class"
