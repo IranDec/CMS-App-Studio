@@ -2,12 +2,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Image from 'next/image'; // Import next/image
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { Smartphone, Trash2, MapPin, Video, Type, MousePointerSquare, Space as SpacerIcon } from 'lucide-react';
-import { Button as UiButton } from '@/components/ui/button'; // Renamed to avoid conflict
+import { Smartphone, Trash2, MapPin, Video, Type as TypeIcon, Image as ImageIcon, LayoutGrid, Rows, MessageSquare, MousePointerSquareDashed, Space as SpacerIcon } from 'lucide-react';
+import { Button as UiButton } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import type { DroppedWidget, TextConfig, ButtonConfig, SpacerConfig, MapConfig, VideoConfig, GridConfig, ListConfig, BannerConfig, FormConfig } from '@/types/widget'; // Import the type
+import type { DroppedWidget, TextConfig, ButtonConfig, SpacerConfig, MapConfig, VideoConfig, GridConfig, ListConfig, BannerConfig, FormConfig } from '@/types/widget';
 
 interface PhonePreviewProps {
   widgets: DroppedWidget[];
@@ -16,14 +16,21 @@ interface PhonePreviewProps {
   setSelectedWidgetId: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
-// Helper function to get Tailwind margin class (adjust multiplier as needed)
+// Helper function to get Tailwind margin class
 const getMarginClass = (value: number | undefined, prefix: 'mt' | 'mb'): string => {
     if (value === undefined || value <= 0) return '';
     // Simple mapping: 1 -> 0.25rem -> Tailwind's '1'
-    return `${prefix}-${value}`;
+    // Ensure the generated class exists in Tailwind's default config or is generated.
+    // Max value corresponds to `max-w-xs` in ConfigurationPanel slider.
+    const validMarginValues = Array.from({ length: 21 }, (_, i) => i); // 0 to 20
+    if (validMarginValues.includes(value)) {
+        return `${prefix}-${value}`;
+    }
+    return ''; // Return empty string for invalid values
 };
 
-// Helper function to get Tailwind alignment class
+
+// Helper function to get Tailwind alignment class for text/flex justify
 const getAlignmentClass = (alignment: string | undefined): string => {
     switch (alignment) {
         case 'left': return 'text-left justify-start';
@@ -69,7 +76,6 @@ export function PhonePreview({
 
   useEffect(() => {
         // Ensure map/video rendering happens client-side after mount
-        // to avoid hydration issues with potential browser APIs they might use internally
         setBrowserSpecificRender(true);
     }, []);
 
@@ -79,15 +85,14 @@ export function PhonePreview({
     const widgetType = event.dataTransfer.getData('widgetType');
     if (widgetType) {
       console.log('Dropped:', widgetType);
-      // Get default config for the dropped type
       const defaultConfig = widgetDefaultValuesMap[widgetType as keyof typeof widgetDefaultValuesMap] || {};
       const newWidget: DroppedWidget = {
-        id: `${widgetType}-${Date.now()}`, // Use Date.now() for simple unique ID
+        id: `${widgetType}-${Date.now()}`,
         type: widgetType,
-        config: defaultConfig, // Initialize with default config
+        config: { ...defaultConfig } as DroppedWidget['config'], // Add type assertion
       };
       setWidgets((prevWidgets) => [...prevWidgets, newWidget]);
-      setSelectedWidgetId(newWidget.id); // Select the newly dropped widget
+      setSelectedWidgetId(newWidget.id);
     }
     setIsDraggingOver(false);
   };
@@ -115,12 +120,11 @@ export function PhonePreview({
 
   const removeWidget = (idToRemove: string) => {
      if (selectedWidgetId === idToRemove) {
-      setSelectedWidgetId(null); // Deselect if the removed widget was selected
+      setSelectedWidgetId(null);
     }
     setWidgets((prevWidgets) =>
       prevWidgets.filter((widget) => widget.id !== idToRemove)
     );
-
   };
 
   // Function to render a placeholder or configured widget
@@ -130,157 +134,188 @@ export function PhonePreview({
     const config = widget.config || {};
     const marginTopClass = getMarginClass(config.marginTop, 'mt');
     const marginBottomClass = getMarginClass(config.marginBottom, 'mb');
-    const commonClasses = cn(marginTopClass, marginBottomClass);
+    // Apply common classes to the wrapper div that contains the specific widget content
+    const commonWrapperClasses = cn("relative group border-2 p-1 rounded mb-1 cursor-pointer transition-all duration-150",
+        marginTopClass,
+        marginBottomClass, // Apply margin bottom here
+        isSelected ? 'border-primary bg-primary/10 shadow-md' : 'border-transparent hover:border-accent hover:bg-accent/5'
+    );
 
     switch (widget.type) {
-      case 'grid':
-        const gridConfig = config as GridConfig;
-        const columns = gridConfig.columns || '2';
-        const gap = gridConfig.gap ?? 2;
-        content = (
-          <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input", commonClasses)}>
-              <div className={`grid grid-cols-${columns} gap-${gap}`}>
-                {[...Array(parseInt(columns) * 2)].map((_, i) => ( // Show more items for grid
-                     <div key={i} className="h-16 bg-muted rounded animate-pulse"></div>
-                ))}
-              </div>
-              <span className="text-xs text-muted-foreground block text-center pt-1">Grid ({columns} cols, gap {gap})</span>
-          </div>
-        );
-        break;
-      case 'banner':
-          const bannerConfig = config as BannerConfig;
-          content = (
-              <div className={cn("relative w-full rounded overflow-hidden bg-muted", commonClasses)}>
-                  {bannerConfig.imageUrl ? (
-                      <Image
-                          src={bannerConfig.imageUrl}
-                          alt={bannerConfig.altText || 'Banner image'}
-                          layout="fill"
-                          objectFit="cover"
-                          data-ai-hint="banner image website"
-                          onError={(e) => {
-                              // Handle image loading errors, e.g., show placeholder
-                              e.currentTarget.style.display = 'none'; // Hide broken image
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                  const placeholder = parent.querySelector('.banner-placeholder');
-                                  if (placeholder) placeholder.classList.remove('hidden');
-                              }
-                          }}
-                       />
-                  ) : null}
-                   <div className={cn(
-                       "banner-placeholder h-24 flex items-center justify-center text-muted-foreground text-xs",
-                       bannerConfig.imageUrl && "hidden" // Hide placeholder if URL exists (will be shown on error)
-                   )}>
-                       Banner (No Image)
-                   </div>
-              </div>
-          );
-        break;
-      case 'list':
-         const listConfig = config as ListConfig;
-         const itemLayout = listConfig.itemLayout || 'simple';
-         const showDividers = listConfig.showDividers ?? true;
-         const layoutClasses = itemLayout === 'image-left' ? 'flex items-center space-x-2' : '';
-        content = (
-          <div className={cn("space-y-1 p-2 bg-muted/30 rounded border border-dashed border-input", commonClasses)}>
-            {[...Array(3)].map((_, i) => (
-               <div key={i} className={cn("h-8 bg-muted rounded animate-pulse", layoutClasses, showDividers && i < 2 ? 'border-b border-border pb-1 mb-1' : '')}>
-                 {itemLayout === 'image-left' && <div className="h-8 w-8 bg-muted-foreground/20 rounded flex-shrink-0"></div>}
-                 <div className={cn("w-full", i === 1 ? "w-5/6" : "w-full")}></div> {/* Simulate text */}
-               </div>
-            ))}
-             <span className="text-xs text-muted-foreground block text-center pt-1">List ({itemLayout})</span>
-          </div>
-        );
-        break;
-      case 'form':
-          const formConfig = config as FormConfig;
-          content = (
-          <div className={cn("space-y-2 p-3 border border-dashed rounded border-input bg-card", commonClasses)}>
-            <div className="h-5 bg-muted rounded animate-pulse w-1/3"></div> {/* Label */}
-            <div className="h-8 bg-muted rounded animate-pulse w-full"></div> {/* Input */}
-            <div className="h-5 bg-muted rounded animate-pulse w-1/3"></div> {/* Label */}
-            <div className="h-16 bg-muted rounded animate-pulse w-full"></div> {/* Textarea */}
-            <div className="flex justify-end">
-                <div className="h-8 bg-primary/20 rounded animate-pulse w-1/4 px-4 py-2 text-xs text-primary-foreground">
-                    {formConfig.submitButtonText || 'Submit'}
-                 </div>
-             </div>
-             <span className="text-xs text-muted-foreground block text-center pt-1">Form</span>
-          </div>
-        );
-        break;
-      case 'text':
-          const textConfig = config as TextConfig;
-          const alignmentClass = getAlignmentClass(textConfig.alignment);
-          const fontSizeClass = getFontSizeClass(textConfig.fontSize);
-          const fontWeightClass = textConfig.isBold ? 'font-bold' : 'font-normal';
-          const fontStyleClass = textConfig.isItalic ? 'italic' : 'not-italic';
-          content = (
-              <div className={cn("p-1", commonClasses, alignmentClass)}>
-                  <p className={cn(fontSizeClass, fontWeightClass, fontStyleClass)}>
-                      {textConfig.content || "Text Block Placeholder"}
-                  </p>
-              </div>
-          );
-          break;
-       case 'button':
-          const buttonConfig = config as ButtonConfig;
-          const btnAlignClass = getAlignmentClass(buttonConfig.alignment);
-          content = (
-              <div className={cn("flex", commonClasses, btnAlignClass)}>
-                  <UiButton
-                      variant={buttonConfig.variant || 'default'}
-                      size="sm" // Keep buttons smaller in preview
-                      onClick={(e) => e.preventDefault()} // Prevent navigation in preview
-                      className="pointer-events-none" // Make non-interactive in preview
-                  >
-                      {buttonConfig.buttonText || "Button Text"}
-                  </UiButton>
-              </div>
-          );
-          break;
+        case 'banner':
+            const bannerConfig = config as BannerConfig;
+            content = (
+                <div className={cn("relative w-full rounded overflow-hidden bg-muted", getAspectRatioClass('16/9'))} data-ai-hint="website banner placeholder">
+                    {bannerConfig.imageUrl ? (
+                        <Image
+                            src={bannerConfig.imageUrl}
+                            alt={bannerConfig.altText || 'Banner image'}
+                            fill // Use fill instead of layout
+                            style={{ objectFit: 'cover' }} // Use style for objectFit
+                            data-ai-hint="corporate banner"
+                            className="transition-opacity duration-300"
+                            onError={(e) => {
+                                // Handle image loading errors, show placeholder
+                                const img = e.currentTarget;
+                                img.style.opacity = '0'; // Hide broken image smoothly
+                                const placeholder = img.nextElementSibling; // Assume placeholder is the next sibling
+                                if (placeholder) placeholder.classList.remove('hidden');
+                            }}
+                            onLoad={(e) => {
+                                // Ensure placeholder is hidden on successful load
+                                const img = e.currentTarget;
+                                img.style.opacity = '1';
+                                const placeholder = img.nextElementSibling;
+                                if (placeholder) placeholder.classList.add('hidden');
+                            }}
+                        />
+                    ) : null}
+                     {/* Placeholder is always rendered but hidden if imageUrl exists and loads */}
+                     <div className={cn(
+                         "banner-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs bg-muted",
+                         bannerConfig.imageUrl ? "hidden" : "" // Initially hidden if URL exists
+                     )}>
+                        <ImageIcon className="w-8 h-8 mb-1 opacity-50" />
+                        <span>Banner</span>
+                        {!bannerConfig.imageUrl && <span className="text-[10px]">No Image URL</span>}
+                    </div>
+                </div>
+            );
+            break;
+        case 'grid':
+            const gridConfig = config as GridConfig;
+            const columns = gridConfig.columns || '2';
+            const gap = gridConfig.gap ?? 2;
+            const numColumns = parseInt(columns);
+            const colClass = `grid-cols-${columns}`; // Ensure this class exists or is generated
+            const gapClass = `gap-${gap}`; // Ensure this class exists or is generated
+            content = (
+                <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input")} data-ai-hint="product grid layout">
+                    <div className={cn(`grid ${colClass} ${gapClass}`)}>
+                        {[...Array(numColumns * 2)].map((_, i) => (
+                            <div key={i} className="h-20 bg-muted rounded animate-pulse flex flex-col items-center justify-center">
+                                 <ImageIcon size={24} className="text-muted-foreground/50 mb-1"/>
+                                 <div className="h-2 w-10/12 bg-muted-foreground/20 rounded-full mt-1"></div>
+                            </div>
+                        ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground block text-center pt-2">Product Grid ({columns} cols)</span>
+                </div>
+            );
+            break;
+        case 'list':
+            const listConfig = config as ListConfig;
+            const itemLayout = listConfig.itemLayout || 'simple';
+            const showDividers = listConfig.showDividers ?? true;
+            content = (
+                <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input")} data-ai-hint="item list view">
+                     <div className="space-y-2">
+                        {[...Array(3)].map((_, i) => (
+                           <div
+                                key={i}
+                                className={cn(
+                                    "h-12 bg-muted rounded animate-pulse flex items-center px-2 space-x-2",
+                                    itemLayout === 'image-left' ? 'justify-start' : '',
+                                    showDividers && i < 2 ? 'border-b border-border pb-2 mb-2' : ''
+                                )}
+                            >
+                                {itemLayout === 'image-left' && <div className="h-8 w-8 bg-muted-foreground/20 rounded flex-shrink-0"></div>}
+                                <div className="flex-1 space-y-1">
+                                     <div className={cn("h-2 bg-muted-foreground/20 rounded-full", i === 1 ? "w-5/6" : "w-full")}></div>
+                                      <div className="h-2 bg-muted-foreground/10 rounded-full w-2/3"></div>
+                                </div>
+                            </div>
+                        ))}
+                     </div>
+                    <span className="text-xs text-muted-foreground block text-center pt-2">Product List ({itemLayout})</span>
+                </div>
+            );
+            break;
+        case 'form':
+            const formConfig = config as FormConfig;
+            content = (
+                <div className={cn("space-y-3 p-3 border border-dashed rounded border-input bg-card")}>
+                    {/* Simulate Labels and Inputs */}
+                    <div className="space-y-1">
+                        <div className="h-3 bg-muted rounded animate-pulse w-1/4"></div>
+                        <div className="h-8 bg-muted rounded animate-pulse w-full"></div>
+                    </div>
+                     <div className="space-y-1">
+                        <div className="h-3 bg-muted rounded animate-pulse w-1/3"></div>
+                        <div className="h-16 bg-muted rounded animate-pulse w-full"></div>
+                    </div>
+                    {/* Simulate Submit Button */}
+                    <div className="flex justify-end pt-2">
+                        <div className="h-9 bg-primary/80 rounded animate-pulse w-1/4 px-4 py-2 text-sm font-medium text-primary-foreground flex items-center justify-center">
+                            {formConfig.submitButtonText || 'Submit'}
+                        </div>
+                    </div>
+                    <span className="text-xs text-muted-foreground block text-center pt-1">Contact Form</span>
+                </div>
+            );
+            break;
+        case 'text':
+            const textConfig = config as TextConfig;
+            const alignmentClass = getAlignmentClass(textConfig.alignment);
+            const fontSizeClass = getFontSizeClass(textConfig.fontSize);
+            const fontWeightClass = textConfig.isBold ? 'font-bold' : 'font-normal';
+            const fontStyleClass = textConfig.isItalic ? 'italic' : 'not-italic';
+            content = (
+                <div className={cn("p-1 min-h-[2rem]", alignmentClass)}>
+                    <p className={cn(fontSizeClass, fontWeightClass, fontStyleClass, 'text-foreground break-words')}>
+                        {textConfig.content || "Enter your text here..."}
+                    </p>
+                </div>
+            );
+            break;
+         case 'button':
+            const buttonConfig = config as ButtonConfig;
+            const btnAlignClass = getAlignmentClass(buttonConfig.alignment);
+            content = (
+                // Ensure the container takes full width and uses flex for alignment
+                <div className={cn("flex w-full py-1", btnAlignClass)}>
+                    {/* Render an actual button, but disable pointer events */}
+                    <UiButton
+                        variant={buttonConfig.variant || 'default'}
+                        size="sm"
+                        className="pointer-events-none" // Make non-interactive in preview
+                    >
+                        {buttonConfig.buttonText || "Button Text"}
+                    </UiButton>
+                </div>
+            );
+            break;
         case 'spacer':
             const spacerConfig = config as SpacerConfig;
             const height = spacerConfig.height || 4;
+            // Generate height class dynamically, ensure it exists. Max height 40 * 0.25rem = 10rem
+            const validHeights = Array.from({ length: 41 }, (_, i) => i); // 0 to 40
+            const heightClass = validHeights.includes(height) ? `h-${height}` : 'h-4'; // Default to h-4 if invalid
+
             content = (
                 <div
-                    className={cn(commonClasses, `h-${height}`, "bg-muted/20 border border-dashed border-input rounded flex items-center justify-center")}
+                    className={cn(heightClass, "bg-muted/20 border border-dashed border-input rounded flex items-center justify-center overflow-hidden")}
                     aria-label={`Spacer (${height * 0.25}rem)`}
                  >
-                     <span className="text-xs text-muted-foreground">Spacer ({height})</span>
+                     <SpacerIcon className="w-4 h-4 text-muted-foreground/50" />
+                     <span className="text-xs text-muted-foreground ml-1">Spacer ({height})</span>
                  </div>
             );
             break;
          case 'map':
             const mapConfig = config as MapConfig;
             content = (
-                <div className={cn("relative h-40 bg-muted rounded border border-dashed border-input overflow-hidden", commonClasses)}>
+                <div className={cn("relative h-40 bg-muted rounded border border-dashed border-input overflow-hidden")}>
                    {browserSpecificRender ? (
-                    // Basic Map Placeholder - Replace with actual map component if available
-                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
-                        <MapPin className="w-8 h-8 mb-1" />
-                        <p className="text-xs px-2 text-center">Map Placeholder</p>
-                        <p className="text-[10px] px-2 text-center truncate w-full">{mapConfig.address}</p>
+                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-gray-200 dark:bg-gray-700">
+                        <MapPin className="w-10 h-10 mb-2 text-primary" />
+                        <p className="text-sm font-medium">Map Preview</p>
+                        <p className="text-xs px-2 text-center mt-1">{mapConfig.address || "No address set"}</p>
+                        {mapConfig.showMarker === false && <p className="text-[10px] text-muted-foreground/70">(Marker Hidden)</p>}
                      </div>
-                    /* Example using iframe (requires careful security considerations & API keys)
-                    <iframe
-                        width="100%"
-                        height="100%"
-                        loading="lazy"
-                        allowFullScreen
-                        referrerPolicy="no-referrer-when-downgrade"
-                        src={`https://www.google.com/maps/embed/v1/place?key=YOUR_API_KEY&q=${encodeURIComponent(mapConfig.address || '')}&zoom=${mapConfig.zoomLevel || 15}`}
-                        className="border-0"
-                     ></iframe>
-                     */
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs animate-pulse">Loading Map...</div>
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs animate-pulse bg-muted">Loading Map...</div>
                     )}
-
                 </div>
             );
             break;
@@ -288,35 +323,32 @@ export function PhonePreview({
              const videoConfig = config as VideoConfig;
              const aspectRatioClass = getAspectRatioClass(videoConfig.aspectRatio);
              content = (
-                 <div className={cn("relative bg-muted rounded border border-dashed border-input overflow-hidden", commonClasses, aspectRatioClass)}>
-                     {browserSpecificRender && videoConfig.videoUrl ? (
-                         // Basic Video Placeholder - Replace with actual video player
-                         <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground bg-black">
-                            <Video className="w-8 h-8 mb-1 text-white" />
-                            <p className="text-xs px-2 text-center text-white">Video Placeholder</p>
-                             <p className="text-[10px] px-2 text-center truncate w-full text-gray-400">{videoConfig.videoUrl}</p>
+                 <div className={cn("relative bg-black rounded border border-dashed border-input overflow-hidden", aspectRatioClass)}>
+                     {browserSpecificRender ? (
+                         <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground ">
+                            <Video className="w-10 h-10 mb-2 text-white/80" />
+                            <p className="text-sm font-medium text-white/90">Video Preview</p>
+                             {videoConfig.videoUrl ? (
+                                <p className="text-xs px-2 text-center mt-1 text-gray-400 truncate w-full">{videoConfig.videoUrl}</p>
+                             ): (
+                                <p className="text-xs px-2 text-center mt-1 text-gray-500">No Video URL</p>
+                             )}
+                            {videoConfig.autoplay && <p className="text-[10px] text-yellow-500 mt-0.5">(Autoplay Enabled)</p>}
                          </div>
-                         /* Example using iframe (YouTube example)
-                         <iframe
-                            className="w-full h-full border-0"
-                            src={`https://www.youtube.com/embed/${extractYouTubeId(videoConfig.videoUrl)}?autoplay=${videoConfig.autoplay ? 1 : 0}`}
-                            title="Video player"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            allowFullScreen
-                         ></iframe>
-                         */
                      ) : (
-                         <div className={cn("w-full h-full flex items-center justify-center text-muted-foreground text-xs", !browserSpecificRender && "animate-pulse")}>
-                             {browserSpecificRender ? 'Video (No URL)' : 'Loading Video...'}
+                         <div className={cn("w-full h-full flex items-center justify-center text-muted-foreground text-xs animate-pulse bg-muted")}>
+                             Loading Video...
                          </div>
                      )}
                  </div>
              );
              break;
       default:
+        // Render a generic placeholder for unknown types
         content = (
-          <div className={cn("p-2 bg-destructive/20 rounded text-destructive-foreground text-xs", commonClasses)}>
-            Unknown Widget: {widget.type}
+          <div className={cn("p-4 bg-destructive/10 rounded border border-dashed border-destructive text-destructive-foreground text-sm flex flex-col items-center justify-center h-24")}>
+            <p className="font-semibold">Unknown Widget</p>
+            <p className="text-xs mt-1">{widget.type}</p>
           </div>
         );
     }
@@ -325,17 +357,18 @@ export function PhonePreview({
       <div
         key={widget.id}
         onClick={(e) => handleWidgetClick(e, widget.id)}
-        className={cn(
-            "relative group border-2 p-1 rounded mb-1 cursor-pointer transition-all duration-150", // Reduced margin bottom
-            isSelected ? 'border-primary bg-primary/10 shadow-md' : 'border-transparent hover:border-accent hover:bg-accent/5'
-        )}
-         style={{
-            // Apply margins dynamically if needed, though classes preferred
-            // marginTop: `${(widget.config?.marginTop ?? 0) * 0.25}rem`,
-            // marginBottom: `${(widget.config?.marginBottom ?? 0) * 0.25}rem`,
-        }}
+        className={commonWrapperClasses} // Apply wrapper classes here
+        // style={{
+        //      Apply inline margins only if absolutely necessary and Tailwind classes aren't sufficient
+        //      marginTop: `${(widget.config?.marginTop ?? 0) * 0.25}rem`,
+        //      marginBottom: `${(widget.config?.marginBottom ?? 0) * 0.25}rem`,
+        // }}
       >
-        {content}
+        {/* Content does not need margins applied again */}
+        <div className="widget-content">
+             {content}
+        </div>
+
         {/* Overlay and Delete Button */}
         <div className="absolute inset-0 bg-transparent group-hover:bg-black/5 transition-colors duration-150 rounded pointer-events-none"></div>
          <UiButton
@@ -343,7 +376,7 @@ export function PhonePreview({
           size="icon"
           className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity z-10 rounded-full shadow"
           onClick={(e) => {
-             e.stopPropagation(); // Prevent widget selection when deleting
+             e.stopPropagation();
              removeWidget(widget.id);
           }}
           aria-label={`Remove ${widget.type} widget`}
@@ -353,6 +386,7 @@ export function PhonePreview({
       </div>
     );
   };
+
 
   return (
     <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[10px] rounded-[2.5rem] h-[700px] w-[350px] shadow-xl">
@@ -368,10 +402,10 @@ export function PhonePreview({
         {/* App Content Area */}
         <div
           className={cn(
-            'w-full h-full p-3 overflow-y-auto scroll-smooth transition-colors duration-200', // Reduced padding slightly
+            'w-full h-full p-2 overflow-y-auto scroll-smooth transition-colors duration-200', // Adjusted padding
             isDraggingOver
               ? 'bg-accent/10 ring-2 ring-accent ring-inset'
-              : 'bg-white dark:bg-neutral-900' // Adjusted background for light/dark
+              : 'bg-white dark:bg-neutral-900'
           )}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -380,24 +414,24 @@ export function PhonePreview({
           {widgets.length === 0 && !isDraggingOver && (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-6">
               <Smartphone className="w-16 h-16 mb-4 opacity-70" />
-              <p className="text-sm font-medium mb-1">App Preview Area</p>
+              <p className="text-sm font-medium mb-1">App Preview</p>
               <p className="text-xs">
-                Drag widgets from the left panel and drop them here. Click a widget to configure it on the right.
+                Drag widgets from the left panel and drop them here. Click a widget to configure it.
               </p>
             </div>
           )}
-          {isDraggingOver && widgets.length === 0 && ( // Show drop text only if area is empty
+          {isDraggingOver && widgets.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center text-accent font-medium">
               <p>Drop widget here</p>
             </div>
           )}
           {/* Render widgets */}
-          <div className={cn("transition-opacity duration-150", isDraggingOver ? 'opacity-50' : 'opacity-100')}>
+          <div className={cn("space-y-1 transition-opacity duration-150", isDraggingOver ? 'opacity-50' : 'opacity-100')}>
              {widgets.map(renderWidgetContent)}
           </div>
           {/* Show drop indicator at the bottom when dragging over existing widgets */}
            {isDraggingOver && widgets.length > 0 && (
-             <div className="mt-2 p-3 border-2 border-dashed border-accent rounded text-center text-accent font-medium text-sm">
+             <div className="mt-2 p-3 border-2 border-dashed border-accent rounded text-center text-accent font-medium text-sm bg-accent/5">
                 Drop here to add
              </div>
           )}
@@ -409,13 +443,12 @@ export function PhonePreview({
 
 
 // --- Default Config Values (Mirrors Configuration Panel Defaults) ---
-// This ensures newly dropped widgets have initial settings
-const widgetDefaultValuesMap = {
+const widgetDefaultValuesMap: { [key: string]: Partial<DroppedWidget['config']> } = {
     banner: { imageUrl: '', altText: '', linkUrl: '', marginTop: 2, marginBottom: 2 },
     grid: { columns: '2', gap: 2, dataSource: '', marginTop: 2, marginBottom: 2 },
     list: { itemLayout: 'simple', showDividers: true, dataSource: '', marginTop: 2, marginBottom: 2 },
     form: { submitButtonText: 'Submit', recipientEmail: '', successMessage: 'Thank you!', marginTop: 2, marginBottom: 2 },
-    text: { content: 'Enter text...', fontSize: 'base', alignment: 'left', isBold: false, isItalic: false, marginTop: 2, marginBottom: 2 },
+    text: { content: 'Text Block', fontSize: 'base', alignment: 'left', isBold: false, isItalic: false, marginTop: 2, marginBottom: 2 },
     button: { buttonText: 'Click Me', linkUrl: '', variant: 'default', alignment: 'center', marginTop: 2, marginBottom: 2 },
     spacer: { height: 4, marginTop: 0, marginBottom: 0 },
     map: { address: '1600 Amphitheatre Parkway, Mountain View, CA', zoomLevel: 15, showMarker: true, marginTop: 2, marginBottom: 2 },
@@ -423,11 +456,4 @@ const widgetDefaultValuesMap = {
 };
 
 // --- Helper Functions ---
-// Example: Extract YouTube ID (Needs robust error handling)
-function extractYouTubeId(url: string | undefined): string | null {
-    if (!url) return null;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
-}
-
+// Removed unused extractYouTubeId function

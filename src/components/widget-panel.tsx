@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -7,8 +8,8 @@ import {
     Image as ImageIcon,
     Rows,
     MessageSquare,
-    Type, // Text icon
-    MousePointerSquareDashed, // Button icon
+    Type as TypeIcon, // Correctly imported Type
+    MousePointerSquareDashed, // Corrected icon import
     Space, // Spacer icon
     MapPin, // Map icon
     VideoIcon, // Video icon
@@ -22,8 +23,8 @@ const widgets = [
   { id: 'banner', name: 'Banner Image', icon: ImageIcon, description: 'Display a prominent image with an optional link.' },
   { id: 'grid', name: 'Product Grid', icon: LayoutGrid, description: 'Show products in a grid layout.' },
   { id: 'list', name: 'Product List', icon: Rows, description: 'Display products in a list format.' },
-  { id: 'text', name: 'Text Block', icon: Type, description: 'Add formatted text content.' },
-  { id: 'button', name: 'Button', icon: MousePointerSquareDashed, description: 'Add a clickable button with a link.' },
+  { id: 'text', name: 'Text Block', icon: TypeIcon, description: 'Add formatted text content.' }, // Use TypeIcon
+  { id: 'button', name: 'Button', icon: MousePointerSquareDashed, description: 'Add a clickable button with a link.' }, // Use correct icon
   { id: 'spacer', name: 'Spacer', icon: Space, description: 'Add vertical space between elements.' },
   { id: 'form', name: 'Contact Form', icon: MessageSquare, description: 'Collect user input via a form.' },
   { id: 'map', name: 'Map', icon: MapPin, description: 'Embed an interactive map.' },
@@ -79,5 +80,3 @@ export function WidgetPanel() {
     </div>
   );
 }
-
-
