@@ -1,3 +1,4 @@
+// Designed by Mohammad Babaei (adschi.com)
 "use client"
 
 // Inspired by react-hot-toast library

@@ -1,4 +1,4 @@
-
+// Designed by Mohammad Babaei (adschi.com)
 'use client';
 
 import React, { useState, useEffect, useRef, memo } from 'react';
@@ -226,12 +226,16 @@ interface CarouselWidgetProps {
 }
 
 const CarouselWidget: React.FC<CarouselWidgetProps> = memo(({ config, handleNavigation }) => {
-    const { items, autoplay = false, delay = 3000, showArrows = true, showDots = true, aspectRatio } = config;
-    const { currentIndex, nextSlide, prevSlide, goToSlide } = useCarousel(items?.length || 0, autoplay, delay);
+    // Only call the hook if there are items
+    const hookData = (config.items && config.items.length > 0)
+        ? useCarousel(config.items.length, config.autoplay ?? false, config.delay ?? 3000)
+        : { currentIndex: 0, nextSlide: () => {}, prevSlide: () => {}, goToSlide: () => {} };
+
+    const { currentIndex, nextSlide, prevSlide, goToSlide } = hookData;
+    const { items, showArrows = true, showDots = true, aspectRatio } = config;
     const aspectRatioClassCarousel = getAspectRatioClass(aspectRatio);
 
     if (!items || items.length === 0) {
-        // Use the placeholder rendering logic directly here or from a shared function
         return (
             <div
                 className={cn("relative w-full rounded overflow-hidden bg-muted flex items-center justify-center min-h-[8rem] h-auto border border-dashed border-input p-4")}
@@ -375,7 +379,7 @@ export function PhonePreview({
   //      }
 
   //   }
-  // }, [setWidgets, setCurrentPreviewUrl]); // Only run once on mount
+  // }, [setWidgets, setCurrentPreviewUrl]);
 
   // useEffect(() => {
   //   // Save widgets to local storage whenever they change
@@ -772,11 +776,11 @@ export function PhonePreview({
                      </h1>
                      <div className="flex items-center gap-1">
                          {headerConfig.showCartIcon && (
-                              <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" onClick={(e) => handleNavigation(e, '/cart')}>
-                                    <ShoppingCart className="h-5 w-5" />
-                                    {/* Basic badge simulation */}
-                                    <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
-                                </UiButton>
+                             <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" onClick={(e) => handleNavigation(e, '/cart')}>
+                                 <ShoppingCart className="h-5 w-5" />
+                                 {/* Basic badge simulation */}
+                                 <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
+                             </UiButton>
                          )}
                           {headerConfig.showAuthButton && (
                              <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground" onClick={(e) => handleNavigation(e, '/auth')}>

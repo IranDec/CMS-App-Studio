@@ -1,4 +1,4 @@
-
+// Designed by Mohammad Babaei (adschi.com)
 /**
  * @fileOverview Defines the types for widgets used in the application builder.
  */

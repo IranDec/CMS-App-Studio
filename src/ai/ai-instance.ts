@@ -1,3 +1,4 @@
+// Designed by Mohammad Babaei (adschi.com)
 import {genkit} from 'genkit';
 import {googleAI} from '@genkit-ai/googleai';
 

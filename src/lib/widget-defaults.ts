@@ -1,4 +1,4 @@
-
+// Designed by Mohammad Babaei (adschi.com)
 /**
  * @fileOverview Centralized default configuration values for widgets.
  */

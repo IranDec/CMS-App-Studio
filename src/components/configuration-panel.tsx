@@ -1,4 +1,4 @@
-
+// Designed by Mohammad Babaei (adschi.com)
 'use client';
 
 import React, { useEffect, useState } from 'react';
@@ -651,7 +651,7 @@ export function ConfigurationPanel({
                          <div className="grid grid-cols-2 gap-4">
                              <div className="flex items-center space-x-2 pt-2"> <Controller name="autoplay" control={form.control} defaultValue={false} render={({ field }) => <Checkbox id="c-autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="c-autoplay">Autoplay</Label> </div>
                              <div className="space-y-2"> <Label htmlFor="delay">Delay (ms)</Label> <Controller name="delay" control={form.control} defaultValue={3000} render={({ field }) => <Input id="delay" type="number" min="1000" step="100" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} onBlur={handleBlurUpdate('delay')} disabled={!form.watch('autoplay')} />} /> {carouselErrors?.delay && <p className="text-sm text-destructive">{carouselErrors.delay.message}</p>} </div>
-                             <div className="flex items-center space-x-2 pt-2"> <Controller name="showArrows" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="showArrows" checked={field.value ?? true} onCheckedChange={field.onChange} />} /> <Label htmlFor="showArrows">Show Arrows</Label> </div>
+                             <div className="flex items-center space-x-2 pt-2"> <Controller name="showArrows" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="showArrows" checked={field.value ?? false} onCheckedChange={field.onChange} />} /> <Label htmlFor="showArrows">Show Arrows</Label> </div>
                              <div className="flex items-center space-x-2 pt-2"> <Controller name="showDots" control={form.control} defaultValue={true} render={({ field }) => <Checkbox id="showDots" checked={field.value ?? true} onCheckedChange={field.onChange} />} /> <Label htmlFor="showDots">Show Dots</Label> </div>
                          </div>
                           <div className="space-y-2 mt-3"> <Label htmlFor="c-aspectRatio">Aspect Ratio</Label> <Controller name="aspectRatio" control={form.control} render={({ field }) => ( <Select onValueChange={field.onChange} value={field.value}><SelectTrigger id="c-aspectRatio"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="16/9">16:9</SelectItem><SelectItem value="4/3">4:3</SelectItem><SelectItem value="1/1">1:1</SelectItem><SelectItem value="21/9">21:9</SelectItem><SelectItem value="auto">Auto</SelectItem></SelectContent></Select> )} /> </div>
@@ -813,5 +813,3 @@ export function ConfigurationPanel({
         </div>
     );
 }
-
-    

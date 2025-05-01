@@ -1,3 +1,4 @@
+// Designed by Mohammad Babaei (adschi.com)
 
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans'; // Import directly from /sans

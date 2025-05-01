@@ -1,3 +1,4 @@
+// Designed by Mohammad Babaei (adschi.com)
 /**
  * Represents the configuration needed to connect to a CMS platform.
  */

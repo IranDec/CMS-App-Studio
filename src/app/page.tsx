@@ -1,4 +1,4 @@
-
+// Designed by Mohammad Babaei (adschi.com)
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -156,7 +156,7 @@ export default function Home() {
           className="flex-grow"
           widgets={widgets} // Pass all widgets for context
           setWidgets={setWidgets} // Pass for template loading
-          setSelectedWidgetId={setSelectedWidgetId} // Pass for template focus reset
+          setSelectedWidgetId={setSelectedWidgetId} // Pass for template loading focus
           currentPreviewUrl={currentPreviewUrl} // Pass for context
           setCurrentPreviewUrl={setCurrentPreviewUrl} // Pass for context
         />
