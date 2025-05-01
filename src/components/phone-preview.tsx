@@ -1,7 +1,7 @@
 // Designed by Mohammad Babaei (adschi.com)
 'use client';
 
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect, useRef, memo, useCallback } from 'react'; // Import useCallback
 import Image from 'next/image';
 import Link from 'next/link'; // Import Link
 import { cn } from '@/lib/utils';
@@ -231,12 +231,19 @@ const CarouselWidget: React.FC<CarouselWidgetProps> = memo(({ config, handleNavi
      // --- Call the hook here ---
      // Only call the hook if there are items to avoid unnecessary state/effects
     const hasItems = config.items && config.items.length > 0;
+    // Conditionally call the hook
     const hookData = hasItems
         ? useCarousel(config.items.length, config.autoplay ?? false, config.delay ?? 3000)
-        : { currentIndex: 0, nextSlide: () => {}, prevSlide: () => {}, goToSlide: () => {} }; // Default object when no items
+        : null; // Or provide a default state object if needed when no items
 
+    // Safely destructure hookData only if it exists
+    const { currentIndex, nextSlide, prevSlide, goToSlide } = hookData ?? {
+        currentIndex: 0,
+        nextSlide: () => {},
+        prevSlide: () => {},
+        goToSlide: () => {},
+    }; // Default object when no items or hook is null
 
-    const { currentIndex, nextSlide, prevSlide, goToSlide } = hookData;
     const { items, showArrows = true, showDots = true, aspectRatio } = config;
     const aspectRatioClassCarousel = getAspectRatioClass(aspectRatio);
 
@@ -1484,3 +1491,4 @@ const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, 
     if (url === '/categories') return Rows;
     return Smartphone; // Default icon
  };
+
