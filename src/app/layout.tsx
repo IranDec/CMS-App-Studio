@@ -1,18 +1,22 @@
+
 import type { Metadata } from 'next';
-import { Geist_Sans as Geist, Geist_Mono } from 'geist/font'; // Corrected Geist import
+import { GeistSans } from 'geist/font/sans'; // Import directly from /sans
+import { GeistMono } from 'geist/font/mono'; // Import directly from /mono
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster'; // Import Toaster
 import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
+// Note: Unlike next/font/google, geist/font exports the variables directly.
+// We don't call GeistSans() or GeistMono().
+// const geistSans = GeistSans({ // NO LONGER NEEDED
+//   variable: '--font-geist-sans',
+//   subsets: ['latin'],
+// });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-});
+// const geistMono = GeistMono({ // NO LONGER NEEDED
+//   variable: '--font-geist-mono',
+//   subsets: ['latin'],
+// });
 
 export const metadata: Metadata = {
   title: 'CMS App Studio', // Updated App Name
@@ -28,7 +32,7 @@ export default function RootLayout({
     // Add suppressHydrationWarning to ignore browser extension modifications
     <html lang="en" suppressHydrationWarning={true}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${GeistSans.variable} ${GeistMono.variable} antialiased`} // Use imported objects directly
         // Remove suppressHydrationWarning from body as it's on html
       >
         <ThemeProvider
