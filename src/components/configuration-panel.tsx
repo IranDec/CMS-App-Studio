@@ -21,11 +21,12 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DroppedWidget } from '@/types/widget'; // Import the type
 import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults
-
+import { cn } from '@/lib/utils'; // Import cn utility
 
 interface ConfigurationPanelProps {
   selectedWidget: DroppedWidget | null;
   updateWidgetConfig: (widgetId: string, newConfig: Partial<DroppedWidget['config']>) => void;
+  className?: string; // Add className prop
 }
 
 // --- Define Zod schemas for each widget type ---
@@ -96,9 +97,13 @@ const ButtonConfigSchema = BaseWidgetSchema.extend({
 type ButtonConfigFormData = z.infer<typeof ButtonConfigSchema>;
 
 // Spacer
-const SpacerConfigSchema = BaseWidgetSchema.extend({
+const SpacerConfigSchema = z.object({ // No BaseWidgetSchema for Spacer margins
     height: z.number().min(1).max(40).default(4).describe("Vertical space in spacing units (1 = 0.25rem)"),
+    // Margins are usually not needed for a pure spacer widget itself
+     marginTop: z.number().min(0).max(20).default(0).optional(), // Keep optional for schema match
+     marginBottom: z.number().min(0).max(20).default(0).optional(), // Keep optional for schema match
 });
+
 type SpacerConfigFormData = z.infer<typeof SpacerConfigSchema>;
 
 // Map
@@ -135,7 +140,7 @@ const widgetSchemaMap = {
 
 // --- Configuration Panel Component ---
 
-export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: ConfigurationPanelProps) {
+export function ConfigurationPanel({ selectedWidget, updateWidgetConfig, className }: ConfigurationPanelProps) {
 
     const currentSchema = selectedWidget ? widgetSchemaMap[selectedWidget.type as keyof typeof widgetSchemaMap] : BaseWidgetSchema; // Default to Base Schema
     const currentDefaults = selectedWidget ? widgetDefaultValuesMap[selectedWidget.type as keyof typeof widgetDefaultValuesMap] : {};
@@ -149,12 +154,17 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
      // Reset form when selected widget changes or when config updates externally
      useEffect(() => {
         if (selectedWidget) {
-            console.log("Resetting form with config:", selectedWidget.config);
-            form.reset(selectedWidget.config || currentDefaults);
+            // Merge defaults with potentially partial existing config
+            const mergedConfig = {
+                 ...(widgetDefaultValuesMap[selectedWidget.type as keyof typeof widgetDefaultValuesMap] || {}), // Start with defaults
+                 ...(selectedWidget.config || {}), // Override with existing config
+             };
+             console.log("Resetting form with config:", mergedConfig);
+             form.reset(mergedConfig);
         } else {
             form.reset({}); // Reset to empty if no widget selected
         }
-    }, [selectedWidget, form, currentDefaults]); // Dependencies include currentDefaults
+    }, [selectedWidget, form]); // Removed currentDefaults dependency as it's static
 
 
     // --- Handle Form Submission (on blur or specific interactions) ---
@@ -176,7 +186,8 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
         const subscription = form.watch((value, { name /*, type */ }) => {
              // Auto-update specific fields immediately (sliders, checkboxes, selects)
              const instantUpdateFields = [
-                'marginTop', 'marginBottom', 'height', 'gap', 'zoomLevel', 'showDividers', 'isBold', 'isItalic', 'showMarker', 'autoplay', 'showControls', // Booleans, Sliders
+                'marginTop', 'marginBottom', 'height', 'gap', 'zoomLevel', // Sliders
+                'showDividers', 'isBold', 'isItalic', 'showMarker', 'autoplay', 'showControls', // Booleans
                 'columns', 'itemLayout', 'fontSize', 'alignment', 'variant', 'size', 'aspectRatio', 'imageFit', 'itemAspectRatio', 'imageSize', 'textColor', 'mapStyle', // Selects
             ];
 
@@ -184,13 +195,21 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                  if (selectedWidget && currentSchema) {
                     // We use getValues because 'value' might only contain the changed field
                     const currentValues = form.getValues();
-                    currentSchema.safeParseAsync(currentValues).then(result => {
-                        if (result.success) {
-                            // Update with the full, validated data set
-                            console.log(`Updating widget config (instant: ${name}):`, selectedWidget.id, result.data);
-                            updateWidgetConfig(selectedWidget.id, result.data);
+                    // Validate the specific changed field first for immediate feedback
+                    currentSchema.pick({ [name]: true } as any).safeParseAsync({ [name]: currentValues[name] }).then(fieldResult => {
+                        if (fieldResult.success) {
+                             // If single field is valid, update the full config
+                             currentSchema.safeParseAsync(currentValues).then(fullResult => {
+                                if (fullResult.success) {
+                                     console.log(`Updating widget config (instant: ${name}):`, selectedWidget.id, fullResult.data);
+                                     updateWidgetConfig(selectedWidget.id, fullResult.data);
+                                } else {
+                                      console.warn(`Instant update validation failed for full object after ${name} change:`, fullResult.error.flatten().fieldErrors);
+                                }
+                             });
+
                         } else {
-                             console.warn(`Instant update validation failed for ${name}:`, result.error.flatten().fieldErrors);
+                             console.warn(`Instant update validation failed for ${name}:`, fieldResult.error.flatten().fieldErrors);
                         }
                     });
                  }
@@ -204,19 +223,22 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
     // --- Render Common Fields ---
     const renderCommonFields = () => (
          <>
-            <div className="grid grid-cols-2 gap-4">
+             <hr className="my-4 border-border" />
+             <h3 className="text-md font-medium text-foreground mb-3 px-2">Spacing</h3>
+             <div className="grid grid-cols-2 gap-x-4 gap-y-3 px-2">
                  <div className="space-y-2">
-                    <Label htmlFor="marginTop">Margin Top ({form.watch('marginTop')})</Label>
+                    <Label htmlFor="marginTop">Margin Top ({form.watch('marginTop') ?? widgetDefaultValuesMap.banner.marginTop})</Label>
                     <Controller
                         name="marginTop"
                         control={form.control}
+                        defaultValue={widgetDefaultValuesMap.banner.marginTop} // Provide default
                         render={({ field }) => (
                             <Slider
                                 id="marginTop"
                                 min={0}
                                 max={20}
                                 step={1}
-                                value={[field.value ?? widgetDefaultValuesMap.banner.marginTop ?? 2]} // Ensure default
+                                value={[field.value ?? widgetDefaultValuesMap.banner.marginTop ?? 2]}
                                 onValueChange={(value) => field.onChange(value[0])}
                                 aria-label="Margin Top"
                             />
@@ -224,24 +246,25 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                     />
                  </div>
                  <div className="space-y-2">
-                    <Label htmlFor="marginBottom">Margin Bottom ({form.watch('marginBottom')})</Label>
+                    <Label htmlFor="marginBottom">Margin Bottom ({form.watch('marginBottom') ?? widgetDefaultValuesMap.banner.marginBottom})</Label>
                      <Controller
                         name="marginBottom"
                         control={form.control}
+                        defaultValue={widgetDefaultValuesMap.banner.marginBottom} // Provide default
                         render={({ field }) => (
                              <Slider
                                 id="marginBottom"
                                 min={0}
                                 max={20}
                                 step={1}
-                                value={[field.value ?? widgetDefaultValuesMap.banner.marginBottom ?? 2]} // Ensure default
+                                value={[field.value ?? widgetDefaultValuesMap.banner.marginBottom ?? 2]}
                                 onValueChange={(value) => field.onChange(value[0])}
                                 aria-label="Margin Bottom"
                             />
                         )}
                     />
                  </div>
-            </div>
+             </div>
          </>
     );
 
@@ -358,11 +381,12 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                              </div>
                          </div>
                          <div className="space-y-2">
-                             <Label htmlFor="gap">Gap ({form.watch('gap')})</Label>
+                              <Label htmlFor="gap">Gap ({form.watch('gap') ?? widgetDefaultValuesMap.grid.gap})</Label>
                               <Controller
                                 name="gap"
                                 control={form.control}
-                                render={({ field }) => <Slider id="gap" min={0} max={10} step={1} value={[field.value ?? 4]} onValueChange={val => field.onChange(val[0])} aria-label="Grid Gap"/>}
+                                defaultValue={widgetDefaultValuesMap.grid.gap} // Provide default
+                                render={({ field }) => <Slider id="gap" min={0} max={10} step={1} value={[field.value ?? widgetDefaultValuesMap.grid.gap ?? 4]} onValueChange={val => field.onChange(val[0])} aria-label="Grid Gap"/>}
                             />
                              {errors.gap && <p className="text-sm text-destructive">{(errors.gap as any)?.message}</p>}
                          </div>
@@ -422,6 +446,7 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                             <Controller
                                 name="showDividers"
                                 control={form.control}
+                                defaultValue={widgetDefaultValuesMap.list.showDividers} // Provide default
                                 render={({ field }) => <Checkbox id="showDividers" checked={field.value ?? true} onCheckedChange={field.onChange} />}
                             />
                              <Label htmlFor="showDividers">Show Dividers</Label>
@@ -535,12 +560,12 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                           </div>
                           <div className="flex items-center space-x-4 pt-2">
                                 <div className="flex items-center space-x-2">
-                                    <Controller name="isBold" control={form.control} render={({ field }) => <Checkbox id="isBold" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
-                                    <Label htmlFor="isBold">Bold</Label>
+                                      <Controller name="isBold" control={form.control} defaultValue={widgetDefaultValuesMap.text.isBold} render={({ field }) => <Checkbox id="isBold" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
+                                      <Label htmlFor="isBold">Bold</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <Controller name="isItalic" control={form.control} render={({ field }) => <Checkbox id="isItalic" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
-                                    <Label htmlFor="isItalic">Italic</Label>
+                                     <Controller name="isItalic" control={form.control} defaultValue={widgetDefaultValuesMap.text.isItalic} render={({ field }) => <Checkbox id="isItalic" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
+                                     <Label htmlFor="isItalic">Italic</Label>
                                 </div>
                           </div>
                      </>
@@ -611,11 +636,12 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
              case 'spacer':
                  specificFields = (
                     <div className="space-y-2">
-                         <Label htmlFor="height">Height ({form.watch('height')})</Label>
-                         <Controller
+                          <Label htmlFor="height">Height ({form.watch('height') ?? widgetDefaultValuesMap.spacer.height})</Label>
+                          <Controller
                             name="height"
                             control={form.control}
-                            render={({ field }) => <Slider id="height" min={1} max={40} step={1} value={[field.value ?? 4]} onValueChange={val => field.onChange(val[0])} aria-label="Spacer Height"/>}
+                            defaultValue={widgetDefaultValuesMap.spacer.height} // Provide default
+                            render={({ field }) => <Slider id="height" min={1} max={40} step={1} value={[field.value ?? widgetDefaultValuesMap.spacer.height ?? 4]} onValueChange={val => field.onChange(val[0])} aria-label="Spacer Height"/>}
                         />
                         <p className="text-xs text-muted-foreground">Adjust the vertical space (1 unit ≈ 0.25rem).</p>
                          {errors.height && <p className="text-sm text-destructive">{(errors.height as any)?.message}</p>}
@@ -631,14 +657,14 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                              {errors.address && <p className="text-sm text-destructive">{(errors.address as any)?.message}</p>}
                         </div>
                          <div className="space-y-2">
-                            <Label htmlFor="zoomLevel">Zoom Level ({form.watch('zoomLevel')})</Label>
-                            <Controller name="zoomLevel" control={form.control} render={({ field }) => <Slider id="zoomLevel" min={1} max={20} step={1} value={[field.value ?? 15]} onValueChange={val => field.onChange(val[0])} aria-label="Map Zoom Level" />} />
+                              <Label htmlFor="zoomLevel">Zoom Level ({form.watch('zoomLevel') ?? widgetDefaultValuesMap.map.zoomLevel})</Label>
+                              <Controller name="zoomLevel" control={form.control} defaultValue={widgetDefaultValuesMap.map.zoomLevel} render={({ field }) => <Slider id="zoomLevel" min={1} max={20} step={1} value={[field.value ?? widgetDefaultValuesMap.map.zoomLevel ?? 15]} onValueChange={val => field.onChange(val[0])} aria-label="Map Zoom Level" />} />
                              {errors.zoomLevel && <p className="text-sm text-destructive">{(errors.zoomLevel as any)?.message}</p>}
                          </div>
                          <div className="grid grid-cols-2 gap-4">
                              <div className="flex items-center space-x-2 pt-2">
-                                <Controller name="showMarker" control={form.control} render={({ field }) => <Checkbox id="showMarker" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
-                                <Label htmlFor="showMarker">Show Marker</Label>
+                                 <Controller name="showMarker" control={form.control} defaultValue={widgetDefaultValuesMap.map.showMarker} render={({ field }) => <Checkbox id="showMarker" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                 <Label htmlFor="showMarker">Show Marker</Label>
                              </div>
                              <div className="space-y-2">
                                 <Label htmlFor="mapStyle">Map Style</Label>
@@ -688,12 +714,12 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                         </div>
                         <div className="flex items-center space-x-4 pt-2">
                             <div className="flex items-center space-x-2">
-                                <Controller name="autoplay" control={form.control} render={({ field }) => <Checkbox id="autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
-                                <Label htmlFor="autoplay">Autoplay (Use with caution)</Label>
+                                 <Controller name="autoplay" control={form.control} defaultValue={widgetDefaultValuesMap.video.autoplay} render={({ field }) => <Checkbox id="autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
+                                 <Label htmlFor="autoplay">Autoplay (Use with caution)</Label>
                              </div>
                               <div className="flex items-center space-x-2">
-                                <Controller name="showControls" control={form.control} render={({ field }) => <Checkbox id="showControls" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
-                                <Label htmlFor="showControls">Show Controls</Label>
+                                 <Controller name="showControls" control={form.control} defaultValue={widgetDefaultValuesMap.video.showControls} render={({ field }) => <Checkbox id="showControls" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                 <Label htmlFor="showControls">Show Controls</Label>
                              </div>
                          </div>
                     </>
@@ -708,18 +734,13 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
             <>
               {specificFields}
               {/* Render common margin fields only if the widget type is not 'spacer' */}
-              {selectedWidget.type !== 'spacer' && (
-                <>
-                   <hr className="my-4 border-border" />
-                   {renderCommonFields()}
-                </>
-              )}
+              {selectedWidget.type !== 'spacer' && renderCommonFields()}
             </>
         );
     };
 
     return (
-        <div className="p-4 h-full flex flex-col bg-secondary/50 border-l">
+        <div className={cn("p-4 h-full flex flex-col bg-secondary/50 border-l", className)}> {/* Use className */}
             <h2 className="text-xl font-semibold text-primary mb-4 px-2">Configuration</h2>
             <Card className="flex-1 overflow-hidden bg-card shadow-none border-0">
                 <CardHeader className="pb-4 pt-0 px-2">
@@ -727,24 +748,27 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                         {selectedWidget ? `${selectedWidget.name || selectedWidget.type} Settings` : 'Select a Widget'}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 overflow-y-auto h-[calc(100%-theme(spacing.16))] px-2 pb-4"> {/* Adjust height based on header */}
-                    {selectedWidget ? (
-                        <form
-                            onSubmit={(e) => e.preventDefault()} // Prevent default browser submission
-                            className="space-y-4"
-                            key={selectedWidget.id} // Force re-render and reset on widget change
-                        >
-                            {renderConfigFields()}
-                        </form>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground pt-10">
-                             <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mouse-pointer-click mb-4 opacity-50"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 7.1"/><path d="m5.1 5.1 3.5 3.5"/><path d="M2 13h6"/><path d="M3 3l7.07 7.07"/></svg>
-                            <p>
-                                Click on a widget in the preview to configure its settings here.
-                            </p>
-                        </div>
-                    )}
-                </CardContent>
+                {/* Use a fixed height container for the scrollable content */}
+                <div className="h-[calc(100%-theme(spacing.16))] overflow-y-auto"> {/* Adjust height based on header */}
+                   <CardContent className="space-y-4 px-2 pb-4">
+                        {selectedWidget ? (
+                            <form
+                                onSubmit={(e) => e.preventDefault()} // Prevent default browser submission
+                                className="space-y-4"
+                                key={selectedWidget.id} // Force re-render and reset on widget change
+                            >
+                                {renderConfigFields()}
+                            </form>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground pt-10">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mouse-pointer-click mb-4 opacity-50"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 7.1"/><path d="m5.1 5.1 3.5 3.5"/><path d="M2 13h6"/><path d="M3 3l7.07 7.07"/></svg>
+                                <p>
+                                    Click on a widget in the preview to configure its settings here.
+                                </p>
+                            </div>
+                        )}
+                    </CardContent>
+                 </div>
             </Card>
         </div>
     );

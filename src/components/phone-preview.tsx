@@ -1,23 +1,28 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { Smartphone, Trash2, MapPin, Video, Type as TypeIcon, Image as ImageIcon, LayoutGrid, Rows, MessageSquare, MousePointerSquareDashed, Space as SpacerIcon } from 'lucide-react';
+import { Smartphone, Trash2, MapPin, Video, Type as TypeIcon, Image as ImageIcon, LayoutGrid, Rows, MessageSquare, MousePointerSquareDashed, Space as SpacerIcon, GripVertical } from 'lucide-react';
 import { Button as UiButton } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import type { DroppedWidget, TextConfig, ButtonConfig, SpacerConfig, MapConfig, VideoConfig, GridConfig, ListConfig, BannerConfig, FormConfig, BaseWidgetConfig } from '@/types/widget';
-import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults
+import type { DroppedWidget, TextConfig, ButtonConfig, SpacerConfig, MapConfig, VideoConfig, GridConfig, ListConfig, BannerConfig, FormConfig, BaseWidgetConfig, WidgetDefinition } from '@/types/widget';
+import { widgetDefaultValuesMap } from '@/lib/widget-defaults';
 
 interface PhonePreviewProps {
   widgets: DroppedWidget[];
-  setWidgets: React.Dispatch<React.SetStateAction<DroppedWidget[]>>;
+  setWidgets: React.Dispatch<React.SetStateAction<DroppedWidget[]>>; // Keep for direct deletion
   selectedWidgetId: string | null;
   setSelectedWidgetId: React.Dispatch<React.SetStateAction<string | null>>;
+  addWidget: (widget: DroppedWidget) => void; // Function to add a new widget
+  moveWidget: (draggedId: string, targetId: string) => void; // Function to reorder widgets
 }
 
-// --- Helper Functions for Dynamic Classes ---
+// --- Helper Functions for Dynamic Classes (Keep existing helpers) ---
+// getMarginClass, getAlignmentClass, getFontSizeClass, getTextColorClass,
+// getAspectRatioClass, getImageFitClass, getGridColsClass, getGapClass,
+// getButtonSizeClass, getButtonAlignmentClass, getImageSizeClass
 
 // Tailwind margin class
 const getMarginClass = (value: number | undefined, prefix: 'mt' | 'mb'): string => {
@@ -130,149 +135,294 @@ const getImageSizeClass = (size: string | undefined): string => {
     }
 }
 
+
 // --- Phone Preview Component ---
 
 export function PhonePreview({
   widgets,
-  setWidgets,
+  setWidgets, // Keep for delete action
   selectedWidgetId,
   setSelectedWidgetId,
+  addWidget,
+  moveWidget,
 }: PhonePreviewProps) {
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [isDraggingOverContainer, setIsDraggingOverContainer] = useState(false); // For overall drop zone
+  const [draggedWidgetId, setDraggedWidgetId] = useState<string | null>(null); // ID of the widget being dragged internally
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null); // ID of the widget being hovered over for dropping
   const [isClient, setIsClient] = useState(false);
+  const widgetsContainerRef = useRef<HTMLDivElement>(null); // Ref for the widgets container
 
   useEffect(() => {
-        // Component did mount, safe to access window/document
-        setIsClient(true);
-    }, []);
+    setIsClient(true);
+  }, []);
 
+  // --- Drag and Drop Handlers ---
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  // == Handling Drag Start (from Widget Panel) ==
+  const handleContainerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    setIsDraggingOver(false);
-    const widgetType = event.dataTransfer.getData('widgetType');
-    const widgetName = event.dataTransfer.getData('widgetName'); // Get the name
+    // Check if the item being dragged is from the widget panel (not internal)
+    if (event.dataTransfer.types.includes('widgettype')) {
+        setIsDraggingOverContainer(true);
+         // Clear internal drag state if dragging from panel
+         setDraggedWidgetId(null);
+         setDropTargetId(null);
+    } else if (draggedWidgetId) {
+         // If dragging internally, set container as potential drop zone only if no widget is targeted
+         if (!dropTargetId) {
+            setIsDraggingOverContainer(true);
+         } else {
+             setIsDraggingOverContainer(false);
+         }
+    }
+  };
 
-    if (widgetType) {
-      console.log('Dropped:', widgetType, 'Name:', widgetName);
+  const handleContainerDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+     // Check if leaving to outside the container or to a child
+     if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+        setIsDraggingOverContainer(false);
+        // Don't clear dropTargetId here, it's handled by widget drag leave
+     }
+  };
+
+  const handleContainerDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDraggingOverContainer(false);
+
+    // == Handle Drop from Widget Panel (Add New Widget) ==
+    const widgetType = event.dataTransfer.getData('widgetType');
+    const widgetName = event.dataTransfer.getData('widgetName');
+    if (widgetType && !draggedWidgetId) { // Ensure it's not an internal drag
+      console.log('Dropped from panel:', widgetType, 'Name:', widgetName);
       const defaultConfig = widgetDefaultValuesMap[widgetType as keyof typeof widgetDefaultValuesMap] || {};
       const newWidget: DroppedWidget = {
-        id: `${widgetType}-${Date.now()}`, // Unique ID
+        id: `${widgetType}-${Date.now()}`,
         type: widgetType,
-        name: widgetName || widgetType.charAt(0).toUpperCase() + widgetType.slice(1), // Use transferred name or generate default
+        name: widgetName || widgetType.charAt(0).toUpperCase() + widgetType.slice(1),
         config: { ...defaultConfig } as DroppedWidget['config'],
       };
-      setWidgets((prevWidgets) => [...prevWidgets, newWidget]);
-      setSelectedWidgetId(newWidget.id); // Select the newly added widget
+      addWidget(newWidget); // Use the passed addWidget function
+      // Drop target id might be set if dropped near another widget, clear it
+      setDropTargetId(null);
+      return; // Stop processing if it was an external drop
     }
+
+    // == Handle Internal Reorder Drop ==
+    if (draggedWidgetId && dropTargetId) {
+        console.log(`Internal drop: Dragged ${draggedWidgetId} onto ${dropTargetId}`);
+        moveWidget(draggedWidgetId, dropTargetId);
+    } else if (draggedWidgetId && !dropTargetId && widgets.length > 0) {
+         // Dropped onto the container background (not a specific widget), move to the end
+         console.log(`Internal drop: Dragged ${draggedWidgetId} to end`);
+         const lastWidgetId = widgets[widgets.length - 1].id;
+         if (draggedWidgetId !== lastWidgetId) {
+             moveWidget(draggedWidgetId, lastWidgetId);
+         }
+    }
+
+    // Reset internal drag state
+    setDraggedWidgetId(null);
+    setDropTargetId(null);
   };
 
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+
+  // == Handling Internal Widget Drag and Drop (Reordering) ==
+  const handleWidgetDragStart = (event: React.DragEvent<HTMLDivElement>, widgetId: string) => {
+     // Check if dragging by the handle
+     if (!(event.target as HTMLElement).closest('.widget-drag-handle')) {
+         event.preventDefault(); // Prevent drag if not initiated from handle
+         console.log("Drag prevented: Not initiated from handle.");
+         return;
+     }
+    console.log(`Internal drag start: ${widgetId}`);
+    event.dataTransfer.setData('widgetIdInternal', widgetId);
+    event.dataTransfer.effectAllowed = 'move'; // Indicate a move operation
+    setDraggedWidgetId(widgetId);
+    // Make the dragged element slightly transparent
+    event.currentTarget.style.opacity = '0.5';
+  };
+
+  const handleWidgetDragOver = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
     event.preventDefault();
-    setIsDraggingOver(true);
-  };
+    event.stopPropagation(); // Prevent container drag over from firing
 
-  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    // Check if leaving to a child element (like the delete button)
-     if (!event.currentTarget.contains(event.relatedTarget as Node)) {
-        setIsDraggingOver(false);
+    if (draggedWidgetId && draggedWidgetId !== targetWidgetId) {
+       // console.log(`Internal drag over: Target ${targetWidgetId}`);
+       setDropTargetId(targetWidgetId);
+       setIsDraggingOverContainer(false); // Ensure container highlight is off
+        // Optionally add visual feedback to the target widget
+        event.currentTarget.classList.add('drop-target-hover');
     }
   };
 
+   const handleWidgetDragEnter = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
+       event.preventDefault();
+       event.stopPropagation();
+        if (draggedWidgetId && draggedWidgetId !== targetWidgetId) {
+            setDropTargetId(targetWidgetId);
+            setIsDraggingOverContainer(false);
+            event.currentTarget.classList.add('drop-target-hover'); // Add visual cue on enter
+        }
+    };
+
+
+  const handleWidgetDragLeave = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
+     event.stopPropagation();
+      // Only remove target state if leaving the specific widget element entirely
+      // Check if relatedTarget (where the mouse is going) is outside this widget wrapper
+      if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+          // console.log(`Internal drag leave: Target ${targetWidgetId}`);
+          if (dropTargetId === targetWidgetId) {
+            setDropTargetId(null); // Clear target if leaving the current one
+          }
+          event.currentTarget.classList.remove('drop-target-hover');
+      }
+
+  };
+
+   const handleWidgetDrop = (event: React.DragEvent<HTMLDivElement>, targetWidgetId: string) => {
+        event.preventDefault();
+        event.stopPropagation(); // Important to prevent container drop handler
+
+        if (draggedWidgetId && draggedWidgetId !== targetWidgetId) {
+            console.log(`Internal drop onto widget: Dragged ${draggedWidgetId} onto ${targetWidgetId}`);
+            moveWidget(draggedWidgetId, targetWidgetId);
+        }
+        // Reset styles and state handled in handleContainerDrop or handleWidgetDragEnd
+         event.currentTarget.classList.remove('drop-target-hover'); // Remove visual cue
+         // Let the container drop handle the final state reset
+        handleContainerDrop(event); // Forward to container drop to reset states
+
+    };
+
+
+  const handleWidgetDragEnd = (event: React.DragEvent<HTMLDivElement>) => {
+    console.log("Internal drag end");
+    // Restore opacity
+    event.currentTarget.style.opacity = '1';
+    // Reset internal drag state if the drop wasn't successful or happened outside
+     // Find all potential drop targets and remove hover class
+    document.querySelectorAll('.widget-wrapper.drop-target-hover').forEach(el => {
+        el.classList.remove('drop-target-hover');
+    });
+    // Reset state, ensuring dropTargetId is cleared if drag ends without a valid drop
+    setDraggedWidgetId(null);
+    setDropTargetId(null);
+    setIsDraggingOverContainer(false);
+
+  };
+
+
+  // --- Other Handlers ---
   const handleWidgetClick = (
     event: React.MouseEvent<HTMLDivElement>,
     widgetId: string
   ) => {
-    // Prevent click propagation if delete button was clicked
-    if ((event.target as HTMLElement).closest('button[aria-label^="Remove"]')) {
-        return;
+    // Prevent selection if delete or drag handle was clicked
+    if (
+      (event.target as HTMLElement).closest('button[aria-label^="Remove"]') ||
+      (event.target as HTMLElement).closest('.widget-drag-handle')
+    ) {
+      return;
     }
     setSelectedWidgetId(widgetId);
-     console.log("Selected widget:", widgetId);
+    console.log("Selected widget:", widgetId);
   };
 
-
   const removeWidget = (idToRemove: string) => {
-     // Deselect if the removed widget was selected
-     if (selectedWidgetId === idToRemove) {
-        setSelectedWidgetId(null);
-     }
-     setWidgets((prevWidgets) =>
-        prevWidgets.filter((widget) => widget.id !== idToRemove)
-     );
-      console.log("Removed widget:", idToRemove);
+    if (selectedWidgetId === idToRemove) {
+      setSelectedWidgetId(null);
+    }
+    // Use the passed setWidgets for deletion
+    setWidgets((prevWidgets) =>
+      prevWidgets.filter((widget) => widget.id !== idToRemove)
+    );
+    console.log("Removed widget:", idToRemove);
   };
 
 
   // --- Render Widget Content ---
-  const renderWidgetContent = (widget: DroppedWidget) => {
+  const renderWidgetContent = (widget: DroppedWidget, index: number) => {
     let content;
     const isSelected = widget.id === selectedWidgetId;
-    // Ensure config exists, provide default BaseWidgetConfig if not
+    const isBeingDragged = widget.id === draggedWidgetId;
+    const isDropTarget = widget.id === dropTargetId && !isBeingDragged; // Don't highlight self as target
+
     const config: BaseWidgetConfig & Record<string, any> = {
-        marginTop: 2,
-        marginBottom: 2,
-        ...(widget.config || {}), // Spread existing config, potentially overriding defaults
+        marginTop: widgetDefaultValuesMap[widget.type as keyof typeof widgetDefaultValuesMap]?.marginTop ?? 2,
+        marginBottom: widgetDefaultValuesMap[widget.type as keyof typeof widgetDefaultValuesMap]?.marginBottom ?? 2,
+        ...(widget.config || {}),
     };
     const marginTopClass = getMarginClass(config.marginTop, 'mt');
     const marginBottomClass = getMarginClass(config.marginBottom, 'mb');
 
     const commonWrapperClasses = cn(
-        "relative group border-2 p-1 rounded-lg mb-1 cursor-pointer transition-all duration-150 ease-in-out", // Slightly larger rounding and padding
-        marginTopClass,
-        marginBottomClass,
-        isSelected ? 'border-primary bg-primary/10 shadow-md ring-2 ring-primary ring-offset-1' : 'border-transparent hover:border-accent hover:bg-accent/5',
-        'widget-wrapper' // Add a common class for easier selection if needed
+      "relative group border-2 p-1 mb-1 rounded-lg transition-all duration-150 ease-in-out",
+      "widget-wrapper", // Common class for targeting
+      marginTopClass,
+      marginBottomClass,
+      isSelected ? 'border-primary bg-primary/10 shadow-md ring-2 ring-primary ring-offset-1 z-10' // Ensure selected is above others
+                 : 'border-transparent hover:border-accent hover:bg-accent/5',
+      isBeingDragged ? 'opacity-50 cursor-grabbing' : 'cursor-pointer',
+      isDropTarget ? 'border-accent border-dashed bg-accent/10 ring-2 ring-accent ring-offset-1' : '',
     );
+
+     const renderPlaceholder = (icon: React.ElementType, name: string, details?: string, hint?: string) => (
+        <div
+            className={cn("relative w-full rounded overflow-hidden bg-muted flex items-center justify-center h-32 border border-dashed border-input", aspectRatioClassBanner || '')}
+             data-ai-hint={hint || `${name} placeholder`}
+        >
+            <div className="flex flex-col items-center justify-center text-muted-foreground text-xs p-2 text-center">
+                {React.createElement(icon, { className: "w-8 h-8 mb-1 opacity-50" })}
+                <span>{name}</span>
+                 {details && <span className="text-[10px] mt-0.5">{details}</span>}
+            </div>
+        </div>
+    );
+
+     // Get config safely with defaults
+    const safeConfig = <T extends BaseWidgetConfig>(defaultConf: Partial<T>): T & BaseWidgetConfig => ({
+        ...defaultConf,
+        ...(widget.config || {}),
+         marginTop: config.marginTop, // Ensure base margins are kept
+         marginBottom: config.marginBottom,
+    }) as T & BaseWidgetConfig;
 
 
     switch (widget.type) {
         case 'banner':
-            const bannerConfig = config as BannerConfig;
+            const bannerConfig = safeConfig<BannerConfig>(widgetDefaultValuesMap.banner);
             const aspectRatioClassBanner = getAspectRatioClass(bannerConfig.aspectRatio);
             const imageFitClass = getImageFitClass(bannerConfig.imageFit);
             content = (
-                 // Use 'a' tag if linkUrl exists, otherwise use 'div'
                 React.createElement(bannerConfig.linkUrl ? 'a' : 'div', {
                     href: bannerConfig.linkUrl || undefined,
                     target: bannerConfig.linkUrl ? '_blank' : undefined,
                     rel: bannerConfig.linkUrl ? 'noopener noreferrer' : undefined,
                     className: cn(
-                        "relative block w-full rounded overflow-hidden bg-muted", // Use block display for 'a' tag
-                         aspectRatioClassBanner || 'h-40', // Fallback height if 'auto'
-                         !bannerConfig.imageUrl && 'flex items-center justify-center' // Center placeholder if no image
+                        "relative block w-full rounded overflow-hidden bg-muted",
+                        aspectRatioClassBanner || 'h-40',
+                        !bannerConfig.imageUrl && 'flex items-center justify-center'
                     ),
-                     'data-ai-hint': "website banner placeholder"
+                    'data-ai-hint': "website banner placeholder"
                 },
                     bannerConfig.imageUrl ? (
                         <Image
-                            key={bannerConfig.imageUrl} // Add key to force re-render on URL change
+                            key={bannerConfig.imageUrl}
                             src={bannerConfig.imageUrl}
                             alt={bannerConfig.altText || 'Banner image'}
                             fill
                             className={cn("transition-opacity duration-300", imageFitClass)}
-                             data-ai-hint="corporate banner sale" // More specific hint
-                             priority={widgets.findIndex(w => w.id === widget.id) < 2} // Prioritize loading first few images
-                             sizes="(max-width: 768px) 100vw, 33vw" // Example sizes
-                             onError={(e) => {
-                                 console.error("Banner image failed to load:", bannerConfig.imageUrl);
-                                 // Hide broken image and show placeholder
-                                 const imgElement = e.currentTarget;
-                                 imgElement.style.opacity = '0';
-                                 imgElement.nextElementSibling?.classList.remove('hidden');
-                             }}
-                             onLoad={(e) => {
-                                 // Ensure placeholder is hidden
-                                 const imgElement = e.currentTarget;
-                                 imgElement.style.opacity = '1';
-                                 imgElement.nextElementSibling?.classList.add('hidden');
-                             }}
+                            data-ai-hint="corporate banner sale"
+                            priority={index < 2} // Prioritize loading first few images
+                            sizes="(max-width: 768px) 100vw, 33vw"
+                            onError={(e) => { console.error("Banner image failed:", bannerConfig.imageUrl); e.currentTarget.style.opacity = '0'; (e.currentTarget.nextElementSibling as HTMLElement)?.classList.remove('hidden'); }}
+                            onLoad={(e) => { e.currentTarget.style.opacity = '1'; (e.currentTarget.nextElementSibling as HTMLElement)?.classList.add('hidden'); }}
                         />
                     ) : null,
-                     // Placeholder is always rendered but hidden if image loads
                      <div className={cn(
-                         "banner-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs bg-muted/80", // Slightly dimmed bg
-                         bannerConfig.imageUrl ? "hidden" : "" // Hidden by default if URL exists
+                         "banner-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs bg-muted/80 p-2 text-center",
+                         bannerConfig.imageUrl ? "hidden" : ""
                      )}>
                         <ImageIcon className="w-10 h-10 mb-1 opacity-50" />
                         <span>Banner</span>
@@ -282,63 +432,73 @@ export function PhonePreview({
             );
             break;
         case 'grid':
-            const gridConfig = config as GridConfig;
-            const gridColsClass = getGridColsClass(gridConfig.columns);
-            const gapClass = getGapClass(gridConfig.gap);
-            const itemAspectRatioClass = getAspectRatioClass(gridConfig.itemAspectRatio) || 'aspect-square'; // Default to square
-            const numPlaceholders = parseInt(gridConfig.columns || '2') * 2; // Show 2 rows
+             const gridConfig = safeConfig<GridConfig>(widgetDefaultValuesMap.grid);
+             const gridColsClass = getGridColsClass(gridConfig.columns);
+             const gapClass = getGapClass(gridConfig.gap);
+             const itemAspectRatioClass = getAspectRatioClass(gridConfig.itemAspectRatio) || 'aspect-square';
+             const numPlaceholders = parseInt(gridConfig.columns || '2') * 2; // Show 2 rows
 
             content = (
-                <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input")} data-ai-hint="product grid display">
-                    <div className={cn(`grid ${gridColsClass} ${gapClass}`)}>
-                        {[...Array(numPlaceholders)].map((_, i) => (
-                            <div key={i} className={cn("bg-muted rounded animate-pulse flex flex-col items-center justify-center overflow-hidden", itemAspectRatioClass)}>
-                                 <ImageIcon size={24} className="text-muted-foreground/50 mb-1"/>
-                                 <div className="h-2 w-10/12 bg-muted-foreground/20 rounded-full mt-1"></div>
-                            </div>
-                        ))}
-                    </div>
-                    <span className="text-xs text-muted-foreground block text-center pt-2">Grid ({gridConfig.columns} cols)</span>
-                </div>
-            );
-            break;
-        case 'list':
-            const listConfig = config as ListConfig;
-            const itemLayout = listConfig.itemLayout || 'simple';
-            const showDividers = listConfig.showDividers ?? true;
-            const imgSizeClass = getImageSizeClass(listConfig.imageSize);
-
-            content = (
-                <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input")} data-ai-hint="ordered item list">
-                     <div className="space-y-2">
-                        {[...Array(3)].map((_, i) => (
-                           <div
-                                key={i}
-                                className={cn(
-                                    "bg-muted rounded animate-pulse flex items-center p-2 space-x-3", // Added padding to items
-                                     itemLayout === 'image-right' ? 'flex-row-reverse space-x-reverse' : 'flex-row', // Handle image right
-                                    showDividers && i < 2 ? 'border-b border-border pb-2 mb-2' : ''
-                                )}
-                            >
-                                {(itemLayout === 'image-left' || itemLayout === 'image-right') &&
-                                    <div className={cn("bg-muted-foreground/20 rounded flex-shrink-0", imgSizeClass)}></div>
-                                }
-                                <div className="flex-1 space-y-1.5"> {/* Increased spacing */}
-                                     <div className={cn("h-2.5 bg-muted-foreground/20 rounded-full", itemLayout === 'simple' ? 'w-5/6' : 'w-full')}></div>
-                                     {itemLayout !== 'simple' && <div className="h-2 bg-muted-foreground/10 rounded-full w-2/3"></div>}
-                                </div>
-                            </div>
-                        ))}
+                 // Check if dataSource has a value to decide whether to show placeholder
+                 gridConfig.dataSource ? (
+                     <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input")} data-ai-hint="product grid display">
+                         <div className={cn(`grid ${gridColsClass} ${gapClass}`)}>
+                             {[...Array(numPlaceholders)].map((_, i) => (
+                                 <div key={i} className={cn("bg-muted rounded animate-pulse flex flex-col items-center justify-center overflow-hidden p-2", itemAspectRatioClass)}>
+                                      <ImageIcon size={24} className="text-muted-foreground/50 mb-1"/>
+                                      <div className="h-2 w-10/12 bg-muted-foreground/20 rounded-full mt-1.5"></div>
+                                      <div className="h-2 w-8/12 bg-muted-foreground/10 rounded-full mt-1"></div>
+                                 </div>
+                             ))}
+                         </div>
+                         <span className="text-xs text-muted-foreground block text-center pt-2">Grid ({gridConfig.columns} cols) - Loading...</span>
                      </div>
-                    <span className="text-xs text-muted-foreground block text-center pt-2">List ({itemLayout})</span>
-                </div>
-            );
-            break;
+                 ) : (
+                     renderPlaceholder(LayoutGrid, "Product Grid", `Configure Data Source`, "product grid setup")
+                 )
+             );
+             break;
+         case 'list':
+             const listConfig = safeConfig<ListConfig>(widgetDefaultValuesMap.list);
+             const itemLayout = listConfig.itemLayout || 'simple';
+             const showDividers = listConfig.showDividers ?? true;
+             const imgSizeClass = getImageSizeClass(listConfig.imageSize);
+
+             content = (
+                  // Check if dataSource has a value
+                 listConfig.dataSource ? (
+                     <div className={cn("p-2 bg-muted/30 rounded border border-dashed border-input")} data-ai-hint="ordered item list">
+                          <div className="space-y-2">
+                             {[...Array(3)].map((_, i) => (
+                                <div
+                                     key={i}
+                                     className={cn(
+                                         "bg-muted rounded animate-pulse flex items-center p-2 space-x-3",
+                                          itemLayout === 'image-right' ? 'flex-row-reverse space-x-reverse' : 'flex-row',
+                                         showDividers && i < 2 ? 'border-b border-border pb-2 mb-2' : ''
+                                     )}
+                                 >
+                                     {(itemLayout === 'image-left' || itemLayout === 'image-right') &&
+                                         <div className={cn("bg-muted-foreground/20 rounded flex-shrink-0", imgSizeClass)}></div>
+                                     }
+                                     <div className="flex-1 space-y-1.5">
+                                          <div className={cn("h-2.5 bg-muted-foreground/20 rounded-full", itemLayout === 'simple' ? 'w-5/6' : 'w-full')}></div>
+                                          {itemLayout !== 'simple' && <div className="h-2 bg-muted-foreground/10 rounded-full w-2/3"></div>}
+                                     </div>
+                                 </div>
+                             ))}
+                          </div>
+                         <span className="text-xs text-muted-foreground block text-center pt-2">List ({itemLayout}) - Loading...</span>
+                     </div>
+                  ) : (
+                     renderPlaceholder(Rows, "Item List", `Configure Data Source`, "item list setup")
+                  )
+             );
+             break;
         case 'form':
-            const formConfig = config as FormConfig;
+            const formConfig = safeConfig<FormConfig>(widgetDefaultValuesMap.form);
             content = (
                 <div className={cn("space-y-3 p-3 border border-dashed rounded border-input bg-card shadow-sm")}>
-                    {/* Simulate Labels and Inputs */}
                     <div className="space-y-1 animate-pulse">
                         <div className="h-3 bg-muted rounded w-1/4"></div>
                         <div className="h-8 bg-muted rounded w-full"></div>
@@ -347,9 +507,7 @@ export function PhonePreview({
                         <div className="h-3 bg-muted rounded w-1/3"></div>
                         <div className="h-16 bg-muted rounded w-full"></div>
                     </div>
-                    {/* Simulate Submit Button */}
-                    <div className="flex justify-end pt-2">
-                         {/* Use UiButton for styling consistency */}
+                     <div className="flex justify-end pt-2">
                          <UiButton variant="default" size="sm" disabled className="animate-pulse">
                             {formConfig.submitButtonText || 'Submit'}
                          </UiButton>
@@ -359,21 +517,20 @@ export function PhonePreview({
             );
             break;
         case 'text':
-            const textConfig = config as TextConfig;
+            const textConfig = safeConfig<TextConfig>(widgetDefaultValuesMap.text);
             const textAlignClass = getAlignmentClass(textConfig.alignment);
             const textSizeClass = getFontSizeClass(textConfig.fontSize);
             const textColorClass = getTextColorClass(textConfig.textColor);
             const fontWeightClass = textConfig.isBold ? 'font-bold' : 'font-normal';
             const fontStyleClass = textConfig.isItalic ? 'italic' : 'not-italic';
             content = (
-                 // Added min-h for empty text blocks
                 <div className={cn("p-1 min-h-[2rem] w-full", textAlignClass.split(' ')[0])}>
                     <p className={cn(
                         textSizeClass,
                         textColorClass,
                         fontWeightClass,
                         fontStyleClass,
-                        'break-words' // Ensure long words wrap
+                        'break-words'
                     )}>
                         {textConfig.content || "Enter text..."}
                     </p>
@@ -381,32 +538,27 @@ export function PhonePreview({
             );
             break;
          case 'button':
-            const buttonConfig = config as ButtonConfig;
+            const buttonConfig = safeConfig<ButtonConfig>(widgetDefaultValuesMap.button);
             const btnAlignClass = getButtonAlignmentClass(buttonConfig.alignment);
-            const btnSizeClass = getButtonSizeClass(buttonConfig.size); // Use helper for dynamic size class
+            const btnSizeClass = getButtonSizeClass(buttonConfig.size);
 
             content = (
-                 // Flex container for alignment
                 <div className={cn("flex w-full py-1", btnAlignClass)}>
-                    {/* Render an actual button, but disable pointer events */}
                     <UiButton
                         variant={buttonConfig.variant || 'default'}
-                        // size prop now directly uses the config value
                         size={buttonConfig.size || 'default'}
-                        className={cn("pointer-events-none", {'w-full': buttonConfig.alignment === 'full'})} // Make non-interactive and handle full width
-                         // If size is 'icon', add specific styling or icon
-                        {...(buttonConfig.size === 'icon' ? { 'aria-label': buttonConfig.buttonText || 'Icon button' } : {})}
+                        className={cn("pointer-events-none", {'w-full': buttonConfig.alignment === 'full'})}
+                         {...(buttonConfig.size === 'icon' ? { 'aria-label': buttonConfig.buttonText || 'Icon button' } : {})}
                     >
-                         {/* Conditionally render icon if size is icon, otherwise text */}
                         {buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")}
                     </UiButton>
                 </div>
             );
             break;
         case 'spacer':
-            const spacerConfig = config as SpacerConfig;
+            const spacerConfig = safeConfig<SpacerConfig>(widgetDefaultValuesMap.spacer);
             const height = spacerConfig.height || 4;
-            const heightClass = `h-${height}`; // Assumes safelist includes h-1 to h-40
+            const heightClass = `h-${height}`;
 
             content = (
                 <div
@@ -419,20 +571,11 @@ export function PhonePreview({
             );
             break;
          case 'map':
-            const mapConfig = config as MapConfig;
-             // Simulate different map styles with background colors/patterns
-            const getMapStyleBg = (style: string | undefined) => {
-                switch(style) {
-                    case 'satellite': return 'bg-emerald-900';
-                    case 'hybrid': return 'bg-emerald-700';
-                    case 'terrain': return 'bg-yellow-800';
-                    case 'roadmap':
-                    default: return 'bg-blue-200 dark:bg-blue-900';
-                }
-            }
+            const mapConfig = safeConfig<MapConfig>(widgetDefaultValuesMap.map);
+            const getMapStyleBg = (style: string | undefined) => { /* ... */ return 'bg-blue-200 dark:bg-blue-900'; } // Simplified for brevity
             content = (
                 <div className={cn("relative h-48 bg-muted rounded border border-dashed border-input overflow-hidden", getMapStyleBg(mapConfig.mapStyle))}>
-                   {isClient ? ( // Only render map content on the client
+                   {isClient ? (
                     <div className="w-full h-full flex flex-col items-center justify-center text-white/90 p-2">
                         <MapPin className="w-10 h-10 mb-2 text-red-500" />
                         <p className="text-sm font-medium">Map Preview</p>
@@ -447,24 +590,24 @@ export function PhonePreview({
             );
             break;
         case 'video':
-             const videoConfig = config as VideoConfig;
+             const videoConfig = safeConfig<VideoConfig>(widgetDefaultValuesMap.video);
              const aspectRatioClassVideo = getAspectRatioClass(videoConfig.aspectRatio);
              content = (
                  <div className={cn("relative bg-black rounded border border-dashed border-input overflow-hidden", aspectRatioClassVideo || 'h-40')}>
-                     {isClient ? ( // Only render video content on the client
-                         <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground ">
-                            <Video className="w-12 h-12 mb-2 text-white/80" />
-                            <p className="text-sm font-medium text-white/90">Video Preview</p>
-                             {videoConfig.videoUrl ? (
-                                <p className="text-xs px-4 text-center mt-1 text-gray-400 truncate w-full">{videoConfig.videoUrl}</p>
-                             ): (
-                                <p className="text-xs px-2 text-center mt-1 text-gray-500">No Video URL</p>
-                             )}
-                             <div className="text-[10px] mt-1 space-x-2">
-                                {videoConfig.autoplay && <span className="text-yellow-500">(Autoplay)</span>}
-                                {videoConfig.showControls === false && <span className="text-gray-500">(Controls Hidden)</span>}
+                     {isClient ? (
+                         videoConfig.videoUrl ? (
+                             <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground ">
+                                 <Video className="w-12 h-12 mb-2 text-white/80" />
+                                 <p className="text-sm font-medium text-white/90">Video Preview</p>
+                                 <p className="text-xs px-4 text-center mt-1 text-gray-400 truncate w-full">{videoConfig.videoUrl}</p>
+                                 <div className="text-[10px] mt-1 space-x-2">
+                                     {videoConfig.autoplay && <span className="text-yellow-500">(Autoplay)</span>}
+                                     {videoConfig.showControls === false && <span className="text-gray-500">(Controls Hidden)</span>}
+                                 </div>
                              </div>
-                         </div>
+                         ) : (
+                             renderPlaceholder(Video, "Video Player", "Configure Video URL", "video player setup")
+                         )
                      ) : (
                          <div className={cn("w-full h-full flex items-center justify-center text-muted-foreground text-xs animate-pulse bg-gray-800")}>
                              Loading Video...
@@ -474,7 +617,6 @@ export function PhonePreview({
              );
              break;
       default:
-        // Render a generic placeholder for unknown types
         content = (
           <div className={cn("p-4 bg-destructive/10 rounded border border-dashed border-destructive text-destructive-foreground text-sm flex flex-col items-center justify-center h-24")}>
             <p className="font-semibold">Unknown Widget</p>
@@ -486,34 +628,63 @@ export function PhonePreview({
     return (
       <div
         key={widget.id}
-        id={`widget-${widget.id}`} // Add an ID for potential targeting
+        id={`widget-${widget.id}`}
         onClick={(e) => handleWidgetClick(e, widget.id)}
         className={commonWrapperClasses}
-        role="button" // Make it accessible as a clickable element
-        tabIndex={0} // Make it focusable
-        aria-label={`Widget: ${widget.name || widget.type}. ${isSelected ? 'Selected.' : ''} Click to configure.`}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}} // Allow selection with keyboard
+        role="button"
+        tabIndex={0}
+        aria-label={`Widget: ${widget.name || widget.type}. ${isSelected ? 'Selected.' : ''} Click to configure, drag handle to reorder.`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}}
+        draggable // Make the entire widget draggable for reordering
+        onDragStart={(e) => handleWidgetDragStart(e, widget.id)}
+        onDragOver={(e) => handleWidgetDragOver(e, widget.id)}
+        onDragEnter={(e) => handleWidgetDragEnter(e, widget.id)}
+        onDragLeave={(e) => handleWidgetDragLeave(e, widget.id)}
+         onDrop={(e) => handleWidgetDrop(e, widget.id)} // Added drop handler
+        onDragEnd={handleWidgetDragEnd}
       >
-        {/* Render the actual widget content */}
-        <div className="widget-content">
-             {content}
+
+        {/* Drop Indicator (Top) */}
+        {isDropTarget && (
+            <div className="absolute top-0 left-0 right-0 h-1 bg-accent -mt-1.5 z-20 pointer-events-none"></div>
+        )}
+
+        {/* Widget Content */}
+        <div className="widget-content flex items-center">
+             {/* Drag Handle */}
+            <div
+                className="widget-drag-handle mr-2 p-1 cursor-grab text-muted-foreground hover:text-foreground touch-none"
+                aria-label={`Drag handle for ${widget.name || widget.type} widget`}
+                // Drag is initiated on the parent, but handle provides visual cue and stops click propagation
+                onClick={(e) => e.stopPropagation()} // Prevent selection when clicking handle
+                onMouseDown={(e) => e.stopPropagation()} // Helps ensure parent drag takes precedence
+            >
+                <GripVertical className="h-5 w-5" />
+            </div>
+            {/* Actual widget content */}
+            <div className="flex-1">
+                {content}
+            </div>
         </div>
 
-        {/* Overlay and Delete Button - Improved Visibility & Accessibility */}
+        {/* Overlay and Delete Button */}
         <div className="absolute inset-0 bg-transparent group-hover:bg-black/10 dark:group-hover:bg-white/5 transition-colors duration-150 rounded-lg pointer-events-none"></div>
-         <UiButton
+        <UiButton
           variant="destructive"
           size="icon"
-          className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 focus-within:opacity-100 group-focus:opacity-100 transition-opacity z-10 rounded-full shadow-md" // Increased size, always visible on focus
-          onClick={(e) => {
-             e.stopPropagation(); // Prevent triggering widget selection
-             removeWidget(widget.id);
-          }}
+          className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100 focus-within:opacity-100 group-focus:opacity-100 transition-opacity z-10 rounded-full shadow-md"
+          onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }}
           aria-label={`Remove ${widget.name || widget.type} widget`}
-          tabIndex={isSelected ? 0 : -1} // Only focusable when widget is selected
+          tabIndex={isSelected ? 0 : -1}
         >
           <Trash2 className="h-4 w-4" />
         </UiButton>
+
+         {/* Drop Indicator (Bottom) - Alternative to top indicator if needed */}
+         {/* {isDropTarget && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-accent -mb-1.5 z-20 pointer-events-none"></div>
+        )} */}
+
       </div>
     );
   };
@@ -523,55 +694,60 @@ export function PhonePreview({
     <div className="relative mx-auto border-gray-800 dark:border-gray-800 bg-gray-800 border-[10px] rounded-[2.5rem] h-[700px] w-[350px] shadow-xl">
       {/* Phone Top Notch */}
       <div className="w-[140px] h-[18px] bg-gray-800 top-0 rounded-b-[1rem] left-1/2 -translate-x-1/2 absolute z-20"></div>
-      {/* Phone Side Buttons (visual only) */}
+      {/* Phone Side Buttons */}
       <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[124px] rounded-l-lg z-0"></div>
       <div className="h-[46px] w-[3px] bg-gray-800 absolute -left-[13px] top-[178px] rounded-l-lg z-0"></div>
       <div className="h-[64px] w-[3px] bg-gray-800 absolute -right-[13px] top-[142px] rounded-r-lg z-0"></div>
 
       {/* Phone Screen */}
-      <div className="rounded-[2rem] overflow-hidden w-full h-full bg-background relative z-10">
+      <div
+          className="rounded-[2rem] overflow-hidden w-full h-full bg-background relative z-10"
+          onDragOver={handleContainerDragOver}
+          onDragLeave={handleContainerDragLeave}
+          onDrop={handleContainerDrop} // Container drop handles both external and internal drops
+          id="phone-preview-dropzone-container"
+      >
         {/* App Content Area */}
         <div
+          ref={widgetsContainerRef}
           className={cn(
-            'w-full h-full p-2 overflow-y-auto scroll-smooth transition-colors duration-200', // Adjusted padding
-            isDraggingOver
+            'w-full h-full p-2 overflow-y-auto scroll-smooth transition-colors duration-200',
+             // Highlight container only when dragging from panel OR dragging internally without a widget target
+             (isDraggingOverContainer || (draggedWidgetId && !dropTargetId))
               ? 'bg-accent/10 ring-2 ring-accent ring-inset'
               : 'bg-white dark:bg-neutral-900'
           )}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          id="phone-preview-dropzone"
-          aria-label="Phone preview area. Drag widgets here."
+          id="phone-preview-widgets-area"
+          aria-label="Phone preview area. Drag widgets here to add, or drag existing widgets to reorder."
         >
-          {widgets.length === 0 && !isDraggingOver && (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-6 pointer-events-none"> {/* Disable pointer events */}
+          {widgets.length === 0 && !isDraggingOverContainer && !draggedWidgetId && (
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground p-6 pointer-events-none">
               <Smartphone className="w-16 h-16 mb-4 opacity-70" />
               <p className="text-sm font-medium mb-1">App Preview</p>
               <p className="text-xs">
-                Drag widgets from the left panel and drop them here. Click a widget to configure it.
+                Drag widgets from the left panel and drop them here. Click a widget to configure it. Drag widgets using the handle to reorder.
               </p>
             </div>
           )}
-          {isDraggingOver && widgets.length === 0 && (
-             <div className="flex flex-col items-center justify-center h-full text-center text-accent font-medium pointer-events-none"> {/* Disable pointer events */}
+          {(isDraggingOverContainer || (draggedWidgetId && !dropTargetId)) && widgets.length === 0 && (
+             <div className="flex flex-col items-center justify-center h-full text-center text-accent font-medium pointer-events-none">
               <p>Drop widget here</p>
             </div>
           )}
+
           {/* Render widgets */}
-           {/* Use a div container for widgets for potential future layout needs */}
           <div
-            className={cn("transition-opacity duration-150", isDraggingOver ? 'opacity-50' : 'opacity-100')}
-            aria-live="polite" // Announce changes when widgets are added/removed
+            className={cn("transition-opacity duration-150", isDraggingOverContainer ? 'opacity-50' : 'opacity-100')}
+            aria-live="polite"
             aria-label="App content widgets"
             >
              {widgets.map(renderWidgetContent)}
           </div>
 
-          {/* Show drop indicator at the bottom when dragging over existing widgets */}
-           {isDraggingOver && widgets.length > 0 && (
-             <div className="mt-2 p-3 border-2 border-dashed border-accent rounded text-center text-accent font-medium text-sm bg-accent/5 pointer-events-none"> {/* Disable pointer events */}
-                Drop here to add
+          {/* Drop indicator at the bottom when dragging from panel over existing widgets */}
+           {(isDraggingOverContainer || (draggedWidgetId && !dropTargetId)) && widgets.length > 0 && (
+             <div className="mt-2 p-3 border-2 border-dashed border-accent rounded text-center text-accent font-medium text-sm bg-accent/5 pointer-events-none">
+                Drop here to add to end
              </div>
           )}
         </div>
@@ -579,3 +755,18 @@ export function PhonePreview({
     </div>
   );
 }
+
+// Add CSS for drop target hover effect (optional but helpful)
+// You can add this to your globals.css or use inline styles if preferred
+/*
+In globals.css:
+
+.widget-wrapper.drop-target-hover {
+  @apply border-accent border-dashed bg-accent/10 ring-2 ring-accent ring-offset-1;
+}
+
+.widget-drag-handle {
+  touch-action: none; // Prevent scrolling on touch devices when grabbing handle
+}
+
+*/

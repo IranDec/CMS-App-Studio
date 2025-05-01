@@ -111,3 +111,43 @@ body {
     @apply bg-background text-foreground font-[--font-geist-sans]; /* Apply Geist font */
   }
 }
+
+/* Add styles for drag and drop interaction */
+@layer components {
+    .widget-drag-handle {
+        touch-action: none; /* Prevent scrolling on touch devices when grabbing handle */
+    }
+
+    .widget-wrapper.drop-target-hover {
+       /* Styles applied via JS/cn utility based on state */
+       /* Example placeholder if not using JS: */
+       /* @apply border-accent border-dashed bg-accent/10 ring-2 ring-accent ring-offset-1; */
+    }
+
+     /* Ensure scrollbars are styled consistently */
+    /* For Webkit browsers (Chrome, Safari) */
+    ::-webkit-scrollbar {
+        width: 8px; /* Width of the scrollbar */
+        height: 8px; /* Height for horizontal scrollbar */
+    }
+
+    ::-webkit-scrollbar-track {
+        @apply bg-muted/50 rounded-full; /* Track color */
+    }
+
+    ::-webkit-scrollbar-thumb {
+        @apply bg-border rounded-full; /* Thumb color */
+        border: 2px solid transparent; /* Creates padding around thumb */
+        background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        @apply bg-foreground/30; /* Thumb color on hover */
+    }
+
+     /* For Firefox */
+    * {
+        scrollbar-width: thin; /* "auto" or "thin" */
+        scrollbar-color: hsl(var(--border)) hsl(var(--muted)/0.5); /* thumb and track color */
+    }
+}
