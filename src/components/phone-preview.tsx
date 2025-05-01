@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -504,14 +505,20 @@ export function PhonePreview({
                          {headerConfig.showBackButton && (
                              <Link href="/previous-page" passHref>
                                 <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground" asChild>
-                                    <ArrowLeft className="h-5 w-5" />
+                                    {/* Wrap fragment child in a span */}
+                                    <span>
+                                        <ArrowLeft className="h-5 w-5" />
+                                    </span>
                                 </UiButton>
                              </Link>
                          )}
                          {headerConfig.showMenuButton && (
                             <Link href="/menu" passHref>
                                 <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground" asChild>
-                                    <Menu className="h-5 w-5" />
+                                     {/* Wrap fragment child in a span */}
+                                     <span>
+                                        <Menu className="h-5 w-5" />
+                                     </span>
                                 </UiButton>
                              </Link>
                          )}
@@ -523,21 +530,23 @@ export function PhonePreview({
                          {headerConfig.showCartIcon && (
                             <Link href="/cart" passHref>
                                 <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" asChild>
-                                    <>
+                                    {/* Wrap fragment children in a single span */}
+                                    <span>
                                         <ShoppingCart className="h-5 w-5" />
                                         {/* Basic badge simulation */}
                                         <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
-                                    </>
+                                    </span>
                                 </UiButton>
                             </Link>
                          )}
                           {headerConfig.showAuthButton && (
                              <Link href="/auth" passHref>
                                 <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground" asChild>
-                                    <>
+                                    {/* Wrap fragment children in a single span */}
+                                    <span>
                                         <User className="h-4 w-4 mr-1" />
                                         {headerConfig.authButtonText || 'Login'}
-                                    </>
+                                    </span>
                                 </UiButton>
                             </Link>
                          )}
@@ -719,13 +728,10 @@ export function PhonePreview({
                              asChild={ButtonElement === Link} // Critical: Use asChild for Link wrapper
                         >
                              {/* Render content inside UiButton */}
-                            {ButtonElement === Link ? (
-                                <>
+                             {/* Wrap fragment child in a span for Link */}
+                             <span>
                                 {buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")}
-                                </>
-                            ) : (
-                                buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")
-                            )}
+                             </span>
                         </UiButton>
                     </ButtonElement>
                 </div>
