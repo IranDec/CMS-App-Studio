@@ -6,15 +6,29 @@
 import type { DroppedWidget } from '@/types/widget';
 
 // Type assertion to ensure the map covers all expected widget types (compile-time check)
+// Note: Header doesn't use BaseWidgetConfig directly, so its defaults are separate
 type WidgetDefaultsMap = {
-    [key in DroppedWidget['type']]: Partial<DroppedWidget['config']>;
+    [key in Exclude<DroppedWidget['type'], 'header'>]: Partial<DroppedWidget['config']>;
+} & {
+    header: Partial<DroppedWidget['config']>; // Add header specifically
 };
 
 
 export const widgetDefaultValuesMap: WidgetDefaultsMap = {
+    header: {
+        title: 'App Name',
+        showBackButton: false,
+        showMenuButton: true,
+        showCartIcon: true,
+        showAuthButton: true,
+        authButtonText: 'Login',
+        // Headers usually don't have margins like other content blocks
+        marginTop: 0,
+        marginBottom: 0,
+    },
     banner: {
-        imageUrl: '',
-        altText: 'Banner Image',
+        imageUrl: 'https://picsum.photos/seed/banner_default/600/200', // Added default image
+        altText: 'Default Banner Image',
         linkUrl: '',
         marginTop: 2,
         marginBottom: 2,
@@ -24,7 +38,7 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
     grid: {
         columns: '2',
         gap: 4, // Default gap increased
-        dataSource: '',
+        dataSource: '', // Keep empty, prompt user to configure
         marginTop: 2,
         marginBottom: 2,
         itemAspectRatio: '1/1',
@@ -32,7 +46,7 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
     list: {
         itemLayout: 'simple',
         showDividers: true,
-        dataSource: '',
+        dataSource: '', // Keep empty, prompt user to configure
         marginTop: 2,
         marginBottom: 2,
         imageSize: 'md',
@@ -45,7 +59,7 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
         marginBottom: 2,
     },
     text: {
-        content: 'Enter your text here...',
+        content: 'This is a sample text block. Edit me!', // Improved default text
         fontSize: 'base',
         alignment: 'left',
         isBold: false,
@@ -55,7 +69,7 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
         textColor: 'default',
     },
     button: {
-        buttonText: 'Click Me',
+        buttonText: 'Learn More', // Improved default text
         linkUrl: '',
         variant: 'default',
         size: 'default',
@@ -70,7 +84,7 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
         marginBottom: 0, // Default margin 0 for spacer
     },
     map: {
-        address: '1600 Amphitheatre Parkway, Mountain View, CA',
+        address: '1 Infinite Loop, Cupertino, CA', // Updated default address
         zoomLevel: 15,
         showMarker: true,
         mapStyle: 'roadmap',
@@ -78,7 +92,7 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
         marginBottom: 2,
     },
     video: {
-        videoUrl: '',
+        videoUrl: '', // Keep empty, prompt user
         aspectRatio: '16/9',
         autoplay: false,
         showControls: true,
@@ -87,3 +101,4 @@ export const widgetDefaultValuesMap: WidgetDefaultsMap = {
     },
     // Add defaults for any new widget types here
 };
+

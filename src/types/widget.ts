@@ -3,6 +3,7 @@
 /**
  * @fileOverview Defines the types for widgets used in the application builder.
  */
+import type React from 'react';
 
 /**
  * Represents a widget definition available in the panel.
@@ -26,7 +27,7 @@ export interface DroppedWidget {
   id: string;
 
   /**
-   * The type of the widget (e.g., 'grid', 'banner', 'list', 'form').
+   * The type of the widget (e.g., 'grid', 'banner', 'list', 'form', 'header').
    * This corresponds to the `id` in `WidgetDefinition`.
    */
   type: string; // Should match WidgetDefinition['id']
@@ -41,7 +42,7 @@ export interface DroppedWidget {
    * Configuration options specific to this widget instance.
    * The structure of this object depends on the `type` of the widget.
    */
-  config: Partial<BaseWidgetConfig & BannerConfig & GridConfig & ListConfig & FormConfig & TextConfig & ButtonConfig & SpacerConfig & MapConfig & VideoConfig>;
+  config: Partial<BaseWidgetConfig & HeaderConfig & BannerConfig & GridConfig & ListConfig & FormConfig & TextConfig & ButtonConfig & SpacerConfig & MapConfig & VideoConfig>;
   // Using Partial allows gradual building of the config object.
   // The specific config type is enforced by the Zod schema in the ConfigurationPanel.
 }
@@ -54,6 +55,16 @@ export interface BaseWidgetConfig {
 
 
 // --- Specific Widget Config Types (Interface merging for better structure) ---
+
+export interface HeaderConfig { // No BaseWidgetConfig, header is usually fixed
+  title: string; // Default: 'App Name'
+  showBackButton: boolean; // Default: false
+  showMenuButton: boolean; // Default: true (for potential sidebar)
+  showCartIcon: boolean; // Default: true
+  showAuthButton: boolean; // Default: true
+  authButtonText: string; // Default: 'Login'
+  // Future: backgroundColor, textColor, etc.
+}
 
 export interface BannerConfig extends BaseWidgetConfig {
   imageUrl: string; // Optional handled by Zod schema
@@ -119,3 +130,4 @@ export interface VideoConfig extends BaseWidgetConfig {
     autoplay: boolean; // Default: false
     showControls: boolean; // Default: true
 }
+

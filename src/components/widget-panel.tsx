@@ -9,10 +9,13 @@ import {
     Rows,
     MessageSquare,
     Type, // Text icon
-    MousePointerSquareDashed, // Corrected import
+    MousePointerSquareDashed, // Button icon
     Space, // Spacer icon
     MapPin, // Map icon
     VideoIcon, // Video icon
+    PanelTop, // Header icon
+    ShoppingCart, // Added for potential use, though integrated into header
+    User, // Added for potential use, though integrated into header
 } from 'lucide-react';
 import { PlatformConnector } from './platform-connector'; // Import PlatformConnector
 import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
@@ -21,6 +24,7 @@ import type { WidgetDefinition } from '@/types/widget'; // Import WidgetDefiniti
 
 // Widget definitions conforming to the interface
 const widgets: WidgetDefinition[] = [
+  { id: 'header', name: 'App Header', icon: PanelTop, description: 'Configurable top navigation bar.' },
   { id: 'banner', name: 'Banner Image', icon: ImageIcon, description: 'Display a prominent image with an optional link.' },
   { id: 'grid', name: 'Product Grid', icon: LayoutGrid, description: 'Show products in a grid layout.' },
   { id: 'list', name: 'Product List', icon: Rows, description: 'Display products in a list format.' },

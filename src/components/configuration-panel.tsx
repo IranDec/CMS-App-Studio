@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DroppedWidget } from '@/types/widget'; // Import the type
 import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults
 import { cn } from '@/lib/utils'; // Import cn utility
+import { ThemeSelector } from './theme-selector'; // Import ThemeSelector
 
 interface ConfigurationPanelProps {
   selectedWidget: DroppedWidget | null;
@@ -31,11 +32,26 @@ interface ConfigurationPanelProps {
 
 // --- Define Zod schemas for each widget type ---
 
+// Base schema (for widgets that have margins)
 const BaseWidgetSchema = z.object({
-    // Common fields
     marginTop: z.number().min(0).max(20).default(2).describe("Margin top in spacing units (1 = 0.25rem)"),
     marginBottom: z.number().min(0).max(20).default(2).describe("Margin bottom in spacing units"),
 });
+
+// Header (No BaseWidgetSchema, doesn't usually have margins)
+const HeaderConfigSchema = z.object({
+    title: z.string().default('App Name').describe("Text displayed in the header title"),
+    showBackButton: z.boolean().default(false).describe("Show a back arrow button"),
+    showMenuButton: z.boolean().default(true).describe("Show a menu button (for sidebar)"),
+    showCartIcon: z.boolean().default(true).describe("Show a shopping cart icon"),
+    showAuthButton: z.boolean().default(true).describe("Show a login/user button"),
+    authButtonText: z.string().default('Login').describe("Text for the login/user button"),
+     // Keep optional fields for schema merging consistency, although header doesn't use them
+     marginTop: z.number().optional(),
+     marginBottom: z.number().optional(),
+});
+type HeaderConfigFormData = z.infer<typeof HeaderConfigSchema>;
+
 
 // Banner
 const BannerConfigSchema = BaseWidgetSchema.extend({
@@ -96,8 +112,8 @@ const ButtonConfigSchema = BaseWidgetSchema.extend({
 });
 type ButtonConfigFormData = z.infer<typeof ButtonConfigSchema>;
 
-// Spacer
-const SpacerConfigSchema = z.object({ // No BaseWidgetSchema for Spacer margins
+// Spacer (No BaseWidgetSchema for Spacer margins)
+const SpacerConfigSchema = z.object({
     height: z.number().min(1).max(40).default(4).describe("Vertical space in spacing units (1 = 0.25rem)"),
     // Margins are usually not needed for a pure spacer widget itself
      marginTop: z.number().min(0).max(20).default(0).optional(), // Keep optional for schema match
@@ -127,6 +143,7 @@ type VideoConfigFormData = z.infer<typeof VideoConfigSchema>;
 
 // --- Map widget types to their schemas ---
 const widgetSchemaMap = {
+    header: HeaderConfigSchema,
     banner: BannerConfigSchema,
     grid: GridConfigSchema,
     list: ListConfigSchema,
@@ -187,7 +204,8 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig, classNa
              // Auto-update specific fields immediately (sliders, checkboxes, selects)
              const instantUpdateFields = [
                 'marginTop', 'marginBottom', 'height', 'gap', 'zoomLevel', // Sliders
-                'showDividers', 'isBold', 'isItalic', 'showMarker', 'autoplay', 'showControls', // Booleans
+                'showDividers', 'isBold', 'isItalic', 'showMarker', 'autoplay', 'showControls', // Booleans (general)
+                 'showBackButton', 'showMenuButton', 'showCartIcon', 'showAuthButton', // Booleans (header)
                 'columns', 'itemLayout', 'fontSize', 'alignment', 'variant', 'size', 'aspectRatio', 'imageFit', 'itemAspectRatio', 'imageSize', 'textColor', 'mapStyle', // Selects
             ];
 
@@ -276,6 +294,51 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig, classNa
         const errors = form.formState.errors;
 
         switch (selectedWidget.type) {
+             case 'header':
+                specificFields = (
+                     <>
+                         <div className="space-y-2">
+                            <Label htmlFor="title">Header Title</Label>
+                            <Controller
+                                name="title"
+                                control={form.control}
+                                render={({ field }) => <Input id="title" placeholder="App Name" {...field} onBlur={handleBlurUpdate('title')} />}
+                            />
+                            {errors.title && <p className="text-sm text-destructive">{(errors.title as any)?.message}</p>}
+                        </div>
+                        <hr className="my-3 border-border" />
+                        <h4 className="text-sm font-medium text-foreground mb-2">Button Visibility</h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                             <div className="flex items-center space-x-2">
+                                <Controller name="showBackButton" control={form.control} defaultValue={widgetDefaultValuesMap.header.showBackButton} render={({ field }) => <Checkbox id="showBackButton" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="showBackButton">Back Button</Label>
+                             </div>
+                              <div className="flex items-center space-x-2">
+                                <Controller name="showMenuButton" control={form.control} defaultValue={widgetDefaultValuesMap.header.showMenuButton} render={({ field }) => <Checkbox id="showMenuButton" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="showMenuButton">Menu Button</Label>
+                             </div>
+                              <div className="flex items-center space-x-2">
+                                <Controller name="showCartIcon" control={form.control} defaultValue={widgetDefaultValuesMap.header.showCartIcon} render={({ field }) => <Checkbox id="showCartIcon" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="showCartIcon">Cart Icon</Label>
+                             </div>
+                              <div className="flex items-center space-x-2">
+                                <Controller name="showAuthButton" control={form.control} defaultValue={widgetDefaultValuesMap.header.showAuthButton} render={({ field }) => <Checkbox id="showAuthButton" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="showAuthButton">Auth Button</Label>
+                             </div>
+                         </div>
+                         <div className="space-y-2 mt-3">
+                            <Label htmlFor="authButtonText">Auth Button Text</Label>
+                            <Controller
+                                name="authButtonText"
+                                control={form.control}
+                                render={({ field }) => <Input id="authButtonText" placeholder="Login" {...field} onBlur={handleBlurUpdate('authButtonText')} disabled={!form.watch('showAuthButton')} />}
+                            />
+                            {errors.authButtonText && <p className="text-sm text-destructive">{(errors.authButtonText as any)?.message}</p>}
+                        </div>
+                          <p className="text-xs text-muted-foreground mt-3">Header appearance (colors, fonts) is controlled by the global theme.</p>
+                     </>
+                 );
+                break;
             case 'banner':
                 specificFields = (
                     <>
@@ -733,43 +796,50 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig, classNa
          return (
             <>
               {specificFields}
-              {/* Render common margin fields only if the widget type is not 'spacer' */}
-              {selectedWidget.type !== 'spacer' && renderCommonFields()}
+              {/* Render common margin fields only if the widget type is NOT 'spacer' or 'header' */}
+              {selectedWidget.type !== 'spacer' && selectedWidget.type !== 'header' && renderCommonFields()}
             </>
         );
     };
 
     return (
-        <div className={cn("p-4 h-full flex flex-col bg-secondary/50 border-l", className)}> {/* Use className */}
-            <h2 className="text-xl font-semibold text-primary mb-4 px-2">Configuration</h2>
-            <Card className="flex-1 overflow-hidden bg-card shadow-none border-0">
-                <CardHeader className="pb-4 pt-0 px-2">
-                    <CardTitle className="text-lg capitalize">
-                        {selectedWidget ? `${selectedWidget.name || selectedWidget.type} Settings` : 'Select a Widget'}
-                    </CardTitle>
-                </CardHeader>
-                {/* Use a fixed height container for the scrollable content */}
-                <div className="h-[calc(100%-theme(spacing.16))] overflow-y-auto"> {/* Adjust height based on header */}
-                   <CardContent className="space-y-4 px-2 pb-4">
-                        {selectedWidget ? (
-                            <form
-                                onSubmit={(e) => e.preventDefault()} // Prevent default browser submission
-                                className="space-y-4"
-                                key={selectedWidget.id} // Force re-render and reset on widget change
-                            >
-                                {renderConfigFields()}
-                            </form>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground pt-10">
-                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mouse-pointer-click mb-4 opacity-50"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 7.1"/><path d="m5.1 5.1 3.5 3.5"/><path d="M2 13h6"/><path d="M3 3l7.07 7.07"/></svg>
-                                <p>
-                                    Click on a widget in the preview to configure its settings here.
-                                </p>
-                            </div>
-                        )}
-                    </CardContent>
-                 </div>
-            </Card>
+        <div className={cn("h-full flex flex-col bg-secondary/50 border-l", className)}> {/* Use className */}
+            <div className="p-4">
+                 <h2 className="text-xl font-semibold text-primary mb-4 px-2">Configuration</h2>
+                 <Card className="flex-1 overflow-hidden bg-card shadow-none border-0">
+                    <CardHeader className="pb-4 pt-0 px-2">
+                        <CardTitle className="text-lg capitalize">
+                            {selectedWidget ? `${selectedWidget.name || selectedWidget.type} Settings` : 'Select a Widget'}
+                        </CardTitle>
+                    </CardHeader>
+                    {/* Use a fixed height container for the scrollable content */}
+                     {/* Adjust height calculation if ThemeSelector is outside Card */}
+                     <div className="h-[calc(100vh-18rem)] overflow-y-auto"> {/* Adjust based on surrounding elements */}
+                       <CardContent className="space-y-4 px-2 pb-4">
+                            {selectedWidget ? (
+                                <form
+                                    onSubmit={(e) => e.preventDefault()} // Prevent default browser submission
+                                    className="space-y-4"
+                                    key={selectedWidget.id} // Force re-render and reset on widget change
+                                >
+                                    {renderConfigFields()}
+                                </form>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground pt-10">
+                                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-mouse-pointer-click mb-4 opacity-50"><path d="m9 9 5 12 1.8-5.2L21 14Z"/><path d="M7.2 2.2 8 7.1"/><path d="m5.1 5.1 3.5 3.5"/><path d="M2 13h6"/><path d="M3 3l7.07 7.07"/></svg>
+                                    <p>
+                                        Click on a widget in the preview to configure its settings here.
+                                    </p>
+                                </div>
+                            )}
+                        </CardContent>
+                     </div>
+                 </Card>
+            </div>
+             {/* Theme Selector at the bottom */}
+            <div className="mt-auto p-4 border-t border-border">
+                <ThemeSelector />
+            </div>
         </div>
     );
 }
