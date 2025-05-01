@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { DroppedWidget } from '@/types/widget'; // Import the type
+import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults
+
 
 interface ConfigurationPanelProps {
   selectedWidget: DroppedWidget | null;
@@ -30,86 +32,95 @@ interface ConfigurationPanelProps {
 
 const BaseWidgetSchema = z.object({
     // Common fields
-    marginTop: z.number().min(0).max(20).default(2), // Use Tailwind scale (e.g., 1 = 0.25rem)
-    marginBottom: z.number().min(0).max(20).default(2),
+    marginTop: z.number().min(0).max(20).default(2).describe("Margin top in spacing units (1 = 0.25rem)"),
+    marginBottom: z.number().min(0).max(20).default(2).describe("Margin bottom in spacing units"),
 });
 
 // Banner
 const BannerConfigSchema = BaseWidgetSchema.extend({
-    imageUrl: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')),
-    altText: z.string().optional(),
-    linkUrl: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')),
+    imageUrl: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')).describe("URL of the banner image"),
+    altText: z.string().optional().describe("Alternative text for accessibility"),
+    linkUrl: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')).describe("Optional URL to link the banner"),
+    imageFit: z.enum(['cover', 'contain']).default('cover').describe("How the image should fit within the banner area"),
+    aspectRatio: z.enum(['16/9', '4/3', '1/1', '21/9', 'auto']).default('16/9').describe("Aspect ratio of the banner container"),
 });
 type BannerConfigFormData = z.infer<typeof BannerConfigSchema>;
 
 // Grid
 const GridConfigSchema = BaseWidgetSchema.extend({
-    columns: z.enum(['2', '3', '4']).default('2'),
-    gap: z.number().min(0).max(10).default(2),
+    columns: z.enum(['1', '2', '3', '4']).default('2').describe("Number of columns in the grid"),
+    gap: z.number().min(0).max(10).default(4).describe("Gap between grid items in spacing units"),
     dataSource: z.string().optional().describe("API Endpoint or identifier for product data"), // Example data source
+    itemAspectRatio: z.enum(['1/1', '4/3', '3/4', '16/9']).default('1/1').describe("Aspect ratio for each item in the grid"),
 });
 type GridConfigFormData = z.infer<typeof GridConfigSchema>;
 
 // List
 const ListConfigSchema = BaseWidgetSchema.extend({
-    itemLayout: z.enum(['simple', 'detailed', 'image-left']).default('simple'),
-    showDividers: z.boolean().default(true),
-    dataSource: z.string().optional().describe("API Endpoint or identifier for product data"), // Example data source
+    itemLayout: z.enum(['simple', 'detailed', 'image-left', 'image-right']).default('simple').describe("Layout style for list items"),
+    showDividers: z.boolean().default(true).describe("Show lines between list items"),
+    dataSource: z.string().optional().describe("API Endpoint or identifier for item data"), // Example data source
+    imageSize: z.enum(['sm', 'md', 'lg']).default('md').describe("Size of the image in image layouts"),
 });
 type ListConfigFormData = z.infer<typeof ListConfigSchema>;
 
 // Form
 const FormConfigSchema = BaseWidgetSchema.extend({
-    submitButtonText: z.string().default('Submit'),
-    recipientEmail: z.string().email({ message: "Invalid email address" }).optional().or(z.literal('')),
-    successMessage: z.string().default('Thank you for your submission!'),
+    submitButtonText: z.string().default('Submit').describe("Text displayed on the submit button"),
+    recipientEmail: z.string().email({ message: "Invalid email address" }).optional().or(z.literal('')).describe("Email address to send form submissions"),
+    successMessage: z.string().default('Thank you for your submission!').describe("Message shown after successful submission"),
      // TODO: Define form fields structure (e.g., array of objects)
 });
 type FormConfigFormData = z.infer<typeof FormConfigSchema>;
 
 // Text Block
 const TextConfigSchema = BaseWidgetSchema.extend({
-    content: z.string().default('Enter your text here...'),
-    fontSize: z.enum(['xs', 'sm', 'base', 'lg', 'xl', '2xl']).default('base'),
-    alignment: z.enum(['left', 'center', 'right']).default('left'),
-    isBold: z.boolean().default(false),
-    isItalic: z.boolean().default(false),
+    content: z.string().default('Enter your text here...').describe("The actual text content"),
+    fontSize: z.enum(['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl']).default('base').describe("Font size of the text"),
+    alignment: z.enum(['left', 'center', 'right', 'justify']).default('left').describe("Text alignment"),
+    isBold: z.boolean().default(false).describe("Make text bold"),
+    isItalic: z.boolean().default(false).describe("Make text italic"),
+    textColor: z.enum(['default', 'primary', 'secondary', 'accent', 'muted']).default('default').describe("Text color based on theme"),
 });
 type TextConfigFormData = z.infer<typeof TextConfigSchema>;
 
 // Button
 const ButtonConfigSchema = BaseWidgetSchema.extend({
-    buttonText: z.string().default('Click Me'),
-    linkUrl: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')),
-    variant: z.enum(['default', 'destructive', 'outline', 'secondary', 'ghost', 'link']).default('default'),
-    alignment: z.enum(['left', 'center', 'right']).default('center'),
+    buttonText: z.string().default('Click Me').describe("Text displayed on the button"),
+    linkUrl: z.string().url({ message: "Must be a valid URL" }).optional().or(z.literal('')).describe("URL the button links to"),
+    variant: z.enum(['default', 'destructive', 'outline', 'secondary', 'ghost', 'link']).default('default').describe("Visual style of the button"),
+    size: z.enum(['default', 'sm', 'lg', 'icon']).default('default').describe("Size of the button"),
+    alignment: z.enum(['left', 'center', 'right', 'full']).default('center').describe("Horizontal alignment or full width"),
+    // icon: z.string().optional().describe("Lucide icon name (optional)"), // Future enhancement
 });
 type ButtonConfigFormData = z.infer<typeof ButtonConfigSchema>;
 
 // Spacer
 const SpacerConfigSchema = BaseWidgetSchema.extend({
-    height: z.number().min(1).max(40).default(4), // Corresponds to Tailwind spacing scale (e.g., 4 = 1rem)
+    height: z.number().min(1).max(40).default(4).describe("Vertical space in spacing units (1 = 0.25rem)"),
 });
 type SpacerConfigFormData = z.infer<typeof SpacerConfigSchema>;
 
 // Map
 const MapConfigSchema = BaseWidgetSchema.extend({
-    address: z.string().default('1600 Amphitheatre Parkway, Mountain View, CA'),
-    zoomLevel: z.number().min(1).max(20).default(15),
-    showMarker: z.boolean().default(true),
+    address: z.string().default('1600 Amphitheatre Parkway, Mountain View, CA').describe("Address or location to display"),
+    zoomLevel: z.number().min(1).max(20).default(15).describe("Initial map zoom level (1=world, 20=building)"),
+    showMarker: z.boolean().default(true).describe("Display a marker at the specified location"),
+    mapStyle: z.enum(['roadmap', 'satellite', 'hybrid', 'terrain']).default('roadmap').describe("Visual style of the map"),
 });
 type MapConfigFormData = z.infer<typeof MapConfigSchema>;
 
 // Video
 const VideoConfigSchema = BaseWidgetSchema.extend({
-    videoUrl: z.string().url({ message: "Must be a valid video URL (e.g., YouTube, Vimeo)" }).optional().or(z.literal('')),
-    aspectRatio: z.enum(['16/9', '4/3', '1/1', '9/16']).default('16/9'),
-    autoplay: z.boolean().default(false),
+    videoUrl: z.string().url({ message: "Must be a valid video URL (e.g., YouTube, Vimeo)" }).optional().or(z.literal('')).describe("URL of the video to embed"),
+    aspectRatio: z.enum(['16/9', '4/3', '1/1', '9/16', 'auto']).default('16/9').describe("Aspect ratio of the video player"),
+    autoplay: z.boolean().default(false).describe("Automatically play video on load (use with caution)"),
+    showControls: z.boolean().default(true).describe("Show video player controls (play, pause, volume)"),
 });
 type VideoConfigFormData = z.infer<typeof VideoConfigSchema>;
 
 
-// --- Map widget types to their schemas and default values ---
+// --- Map widget types to their schemas ---
 const widgetSchemaMap = {
     banner: BannerConfigSchema,
     grid: GridConfigSchema,
@@ -122,19 +133,6 @@ const widgetSchemaMap = {
     video: VideoConfigSchema,
 };
 
-const widgetDefaultValuesMap = {
-    banner: { imageUrl: '', altText: '', linkUrl: '', marginTop: 2, marginBottom: 2 },
-    grid: { columns: '2', gap: 2, dataSource: '', marginTop: 2, marginBottom: 2 },
-    list: { itemLayout: 'simple', showDividers: true, dataSource: '', marginTop: 2, marginBottom: 2 },
-    form: { submitButtonText: 'Submit', recipientEmail: '', successMessage: 'Thank you!', marginTop: 2, marginBottom: 2 },
-    text: { content: 'Enter text...', fontSize: 'base', alignment: 'left', isBold: false, isItalic: false, marginTop: 2, marginBottom: 2 },
-    button: { buttonText: 'Click Me', linkUrl: '', variant: 'default', alignment: 'center', marginTop: 2, marginBottom: 2 },
-    spacer: { height: 4, marginTop: 0, marginBottom: 0 }, // Spacers often don't need top/bottom margins themselves
-    map: { address: '1600 Amphitheatre Parkway, Mountain View, CA', zoomLevel: 15, showMarker: true, marginTop: 2, marginBottom: 2 },
-    video: { videoUrl: '', aspectRatio: '16/9', autoplay: false, marginTop: 2, marginBottom: 2 },
-};
-
-
 // --- Configuration Panel Component ---
 
 export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: ConfigurationPanelProps) {
@@ -145,45 +143,59 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
     const form = useForm({
         resolver: zodResolver(currentSchema),
         defaultValues: selectedWidget?.config || currentDefaults, // Load existing config or defaults
+        mode: 'onBlur', // Validate on blur
     });
 
      // Reset form when selected widget changes or when config updates externally
      useEffect(() => {
         if (selectedWidget) {
+            console.log("Resetting form with config:", selectedWidget.config);
             form.reset(selectedWidget.config || currentDefaults);
         } else {
             form.reset({}); // Reset to empty if no widget selected
         }
-    }, [selectedWidget, form, currentDefaults]);
+    }, [selectedWidget, form, currentDefaults]); // Dependencies include currentDefaults
 
 
     // --- Handle Form Submission (on blur or specific interactions) ---
-     const handleBlurUpdate = async () => {
+     const handleBlurUpdate = (fieldName: string) => async () => {
          if (!selectedWidget) return;
-         const result = await form.trigger(); // Validate the form
+         // Trigger validation only for the field that lost focus
+         const result = await form.trigger(fieldName as any);
          if (result) {
              const data = form.getValues();
-             console.log('Updating widget config (on blur):', selectedWidget.id, data);
+             console.log(`Updating widget config (on blur: ${fieldName}):`, selectedWidget.id, data);
              updateWidgetConfig(selectedWidget.id, data);
+         } else {
+             console.log(`Validation failed for ${fieldName}:`, form.formState.errors);
          }
      };
 
-    // --- Watch form changes and auto-submit (debounced) ---
-    // Use debounce to avoid excessive updates on every keystroke
+    // --- Watch form changes and auto-submit for specific controls ---
     useEffect(() => {
         const subscription = form.watch((value, { name /*, type */ }) => {
-             // Auto-update specific fields immediately (like sliders, checkboxes, selects)
-            if (name && ['marginTop', 'marginBottom', 'height', 'gap', 'zoomLevel', 'columns', 'itemLayout', 'fontSize', 'alignment', 'variant', 'aspectRatio', 'showDividers', 'isBold', 'isItalic', 'showMarker', 'autoplay'].includes(name)) {
+             // Auto-update specific fields immediately (sliders, checkboxes, selects)
+             const instantUpdateFields = [
+                'marginTop', 'marginBottom', 'height', 'gap', 'zoomLevel', 'showDividers', 'isBold', 'isItalic', 'showMarker', 'autoplay', 'showControls', // Booleans, Sliders
+                'columns', 'itemLayout', 'fontSize', 'alignment', 'variant', 'size', 'aspectRatio', 'imageFit', 'itemAspectRatio', 'imageSize', 'textColor', 'mapStyle', // Selects
+            ];
+
+            if (name && instantUpdateFields.includes(name)) {
                  if (selectedWidget && currentSchema) {
-                    currentSchema.safeParseAsync(value).then(result => {
+                    // We use getValues because 'value' might only contain the changed field
+                    const currentValues = form.getValues();
+                    currentSchema.safeParseAsync(currentValues).then(result => {
                         if (result.success) {
-                            console.log('Updating widget config (instant):', selectedWidget.id, value);
-                            updateWidgetConfig(selectedWidget.id, value);
+                            // Update with the full, validated data set
+                            console.log(`Updating widget config (instant: ${name}):`, selectedWidget.id, result.data);
+                            updateWidgetConfig(selectedWidget.id, result.data);
+                        } else {
+                             console.warn(`Instant update validation failed for ${name}:`, result.error.flatten().fieldErrors);
                         }
                     });
                  }
             }
-             // For text inputs, update on blur (handled by onBlur below)
+             // Text inputs/Textareas update on blur (handled by onBlur on the input)
         });
         return () => subscription.unsubscribe();
     }, [form, selectedWidget, updateWidgetConfig, currentSchema]);
@@ -204,8 +216,9 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                                 min={0}
                                 max={20}
                                 step={1}
-                                value={[field.value ?? 0]}
+                                value={[field.value ?? widgetDefaultValuesMap.banner.marginTop ?? 2]} // Ensure default
                                 onValueChange={(value) => field.onChange(value[0])}
+                                aria-label="Margin Top"
                             />
                         )}
                     />
@@ -221,8 +234,9 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                                 min={0}
                                 max={20}
                                 step={1}
-                                value={[field.value ?? 0]}
+                                value={[field.value ?? widgetDefaultValuesMap.banner.marginBottom ?? 2]} // Ensure default
                                 onValueChange={(value) => field.onChange(value[0])}
+                                aria-label="Margin Bottom"
                             />
                         )}
                     />
@@ -231,12 +245,12 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
          </>
     );
 
-
     // --- Render Configuration Fields Based on Widget Type ---
     const renderConfigFields = () => {
         if (!selectedWidget) return null;
 
         let specificFields = null;
+        const errors = form.formState.errors;
 
         switch (selectedWidget.type) {
             case 'banner':
@@ -247,115 +261,184 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                             <Controller
                                 name="imageUrl"
                                 control={form.control}
-                                render={({ field }) => <Input id="imageUrl" placeholder="https://..." {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="imageUrl" placeholder="https://..." {...field} onBlur={handleBlurUpdate('imageUrl')} />}
                             />
-                            {form.formState.errors.imageUrl && <p className="text-sm text-destructive">{(form.formState.errors.imageUrl as { message?: string })?.message}</p>}
+                            {errors.imageUrl && <p className="text-sm text-destructive">{(errors.imageUrl as any)?.message}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="altText">Alt Text</Label>
                             <Controller
                                 name="altText"
                                 control={form.control}
-                                render={({ field }) => <Input id="altText" placeholder="Descriptive text" {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="altText" placeholder="Descriptive text" {...field} onBlur={handleBlurUpdate('altText')} />}
                             />
+                             {errors.altText && <p className="text-sm text-destructive">{(errors.altText as any)?.message}</p>}
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="linkUrl">Link URL (Optional)</Label>
                             <Controller
                                 name="linkUrl"
                                 control={form.control}
-                                render={({ field }) => <Input id="linkUrl" placeholder="https://..." {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="linkUrl" placeholder="https://..." {...field} onBlur={handleBlurUpdate('linkUrl')} />}
                             />
-                             {form.formState.errors.linkUrl && <p className="text-sm text-destructive">{(form.formState.errors.linkUrl as { message?: string })?.message}</p>}
+                             {errors.linkUrl && <p className="text-sm text-destructive">{(errors.linkUrl as any)?.message}</p>}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="imageFit">Image Fit</Label>
+                                <Controller name="imageFit" control={form.control}
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger id="imageFit"><SelectValue placeholder="Select fit" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="cover">Cover</SelectItem>
+                                                <SelectItem value="contain">Contain</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="aspectRatio">Aspect Ratio</Label>
+                                <Controller name="aspectRatio" control={form.control}
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger id="aspectRatio"><SelectValue placeholder="Select ratio" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="16/9">16:9</SelectItem>
+                                                <SelectItem value="4/3">4:3</SelectItem>
+                                                <SelectItem value="1/1">1:1</SelectItem>
+                                                <SelectItem value="21/9">21:9</SelectItem>
+                                                <SelectItem value="auto">Auto</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )} />
+                             </div>
                         </div>
                     </>
                 );
-                break; // Added break statement
+                break;
             case 'grid':
                  specificFields = (
                      <>
-                         <div className="space-y-2">
-                             <Label htmlFor="columns">Columns</Label>
-                             <Controller
-                                 name="columns"
-                                 control={form.control}
-                                 render={({ field }) => (
-                                     <Select onValueChange={field.onChange} value={field.value}>
-                                         <SelectTrigger id="columns">
-                                             <SelectValue placeholder="Select columns" />
-                                         </SelectTrigger>
-                                         <SelectContent>
-                                             <SelectItem value="2">2 Columns</SelectItem>
-                                             <SelectItem value="3">3 Columns</SelectItem>
-                                             <SelectItem value="4">4 Columns</SelectItem>
-                                         </SelectContent>
-                                     </Select>
-                                 )}
-                             />
+                         <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="columns">Columns</Label>
+                                <Controller
+                                    name="columns"
+                                    control={form.control}
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger id="columns">
+                                                <SelectValue placeholder="Select columns" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1">1 Column</SelectItem>
+                                                <SelectItem value="2">2 Columns</SelectItem>
+                                                <SelectItem value="3">3 Columns</SelectItem>
+                                                <SelectItem value="4">4 Columns</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="itemAspectRatio">Item Aspect Ratio</Label>
+                                <Controller name="itemAspectRatio" control={form.control}
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger id="itemAspectRatio"><SelectValue placeholder="Select ratio" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1/1">1:1 (Square)</SelectItem>
+                                                <SelectItem value="4/3">4:3</SelectItem>
+                                                <SelectItem value="3/4">3:4</SelectItem>
+                                                <SelectItem value="16/9">16:9</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )} />
+                             </div>
                          </div>
                          <div className="space-y-2">
                              <Label htmlFor="gap">Gap ({form.watch('gap')})</Label>
                               <Controller
                                 name="gap"
                                 control={form.control}
-                                render={({ field }) => <Slider id="gap" min={0} max={10} step={1} value={[field.value ?? 0]} onValueChange={val => field.onChange(val[0])} />}
+                                render={({ field }) => <Slider id="gap" min={0} max={10} step={1} value={[field.value ?? 4]} onValueChange={val => field.onChange(val[0])} aria-label="Grid Gap"/>}
                             />
-                             {form.formState.errors.gap && <p className="text-sm text-destructive">{(form.formState.errors.gap as { message?: string })?.message}</p>}
+                             {errors.gap && <p className="text-sm text-destructive">{(errors.gap as any)?.message}</p>}
                          </div>
                          <div className="space-y-2">
                             <Label htmlFor="dataSource">Data Source</Label>
                              <Controller
                                 name="dataSource"
                                 control={form.control}
-                                render={({ field }) => <Input id="dataSource" placeholder="API endpoint or ID" {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="dataSource" placeholder="API endpoint or ID" {...field} onBlur={handleBlurUpdate('dataSource')} />}
                             />
                              <p className="text-xs text-muted-foreground">Identifier for fetching product data.</p>
+                             {errors.dataSource && <p className="text-sm text-destructive">{(errors.dataSource as any)?.message}</p>}
                          </div>
                      </>
                  );
-                  break; // Added break statement
+                  break;
              case 'list':
                  specificFields = (
                      <>
-                         <div className="space-y-2">
-                             <Label htmlFor="itemLayout">Item Layout</Label>
-                             <Controller
-                                 name="itemLayout"
-                                 control={form.control}
-                                 render={({ field }) => (
-                                     <Select onValueChange={field.onChange} value={field.value}>
-                                         <SelectTrigger id="itemLayout">
-                                             <SelectValue placeholder="Select layout" />
-                                         </SelectTrigger>
-                                         <SelectContent>
-                                             <SelectItem value="simple">Simple Text</SelectItem>
-                                             <SelectItem value="detailed">Detailed</SelectItem>
-                                             <SelectItem value="image-left">Image Left</SelectItem>
-                                         </SelectContent>
-                                     </Select>
-                                 )}
-                             />
+                         <div className="grid grid-cols-2 gap-4">
+                             <div className="space-y-2">
+                                 <Label htmlFor="itemLayout">Item Layout</Label>
+                                 <Controller
+                                     name="itemLayout"
+                                     control={form.control}
+                                     render={({ field }) => (
+                                         <Select onValueChange={field.onChange} value={field.value}>
+                                             <SelectTrigger id="itemLayout">
+                                                 <SelectValue placeholder="Select layout" />
+                                             </SelectTrigger>
+                                             <SelectContent>
+                                                 <SelectItem value="simple">Simple Text</SelectItem>
+                                                 <SelectItem value="detailed">Detailed</SelectItem>
+                                                 <SelectItem value="image-left">Image Left</SelectItem>
+                                                 <SelectItem value="image-right">Image Right</SelectItem>
+                                             </SelectContent>
+                                         </Select>
+                                     )}
+                                 />
+                             </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="imageSize">Image Size</Label>
+                                <Controller name="imageSize" control={form.control}
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={!['image-left', 'image-right'].includes(form.watch('itemLayout') ?? '')}>
+                                            <SelectTrigger id="imageSize"><SelectValue placeholder="Select size" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="sm">Small</SelectItem>
+                                                <SelectItem value="md">Medium</SelectItem>
+                                                <SelectItem value="lg">Large</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )} />
+                             </div>
                          </div>
-                         <div className="flex items-center space-x-2">
+                         <div className="flex items-center space-x-2 pt-2">
                             <Controller
                                 name="showDividers"
                                 control={form.control}
-                                render={({ field }) => <Checkbox id="showDividers" checked={field.value} onCheckedChange={field.onChange} />}
+                                render={({ field }) => <Checkbox id="showDividers" checked={field.value ?? true} onCheckedChange={field.onChange} />}
                             />
                              <Label htmlFor="showDividers">Show Dividers</Label>
                          </div>
-                         <div className="space-y-2">
+                         <div className="space-y-2 pt-2">
                             <Label htmlFor="dataSource">Data Source</Label>
                              <Controller
                                 name="dataSource"
                                 control={form.control}
-                                render={({ field }) => <Input id="dataSource" placeholder="API endpoint or ID" {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="dataSource" placeholder="API endpoint or ID" {...field} onBlur={handleBlurUpdate('dataSource')} />}
                             />
-                              <p className="text-xs text-muted-foreground">Identifier for fetching product data.</p>
+                              <p className="text-xs text-muted-foreground">Identifier for fetching item data.</p>
+                              {errors.dataSource && <p className="text-sm text-destructive">{(errors.dataSource as any)?.message}</p>}
                          </div>
                      </>
                  );
-                  break; // Added break statement
+                  break;
              case 'form':
                  specificFields = (
                      <>
@@ -364,30 +447,32 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                               <Controller
                                 name="submitButtonText"
                                 control={form.control}
-                                render={({ field }) => <Input id="submitButtonText" {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="submitButtonText" {...field} onBlur={handleBlurUpdate('submitButtonText')} />}
                             />
+                             {errors.submitButtonText && <p className="text-sm text-destructive">{(errors.submitButtonText as any)?.message}</p>}
                          </div>
                           <div className="space-y-2">
                              <Label htmlFor="recipientEmail">Recipient Email</Label>
                               <Controller
                                 name="recipientEmail"
                                 control={form.control}
-                                render={({ field }) => <Input id="recipientEmail" type="email" placeholder="your@email.com" {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Input id="recipientEmail" type="email" placeholder="your@email.com" {...field} onBlur={handleBlurUpdate('recipientEmail')} />}
                             />
-                              {form.formState.errors.recipientEmail && <p className="text-sm text-destructive">{(form.formState.errors.recipientEmail as { message?: string })?.message}</p>}
+                              {errors.recipientEmail && <p className="text-sm text-destructive">{(errors.recipientEmail as any)?.message}</p>}
                           </div>
                            <div className="space-y-2">
                              <Label htmlFor="successMessage">Success Message</Label>
                               <Controller
                                 name="successMessage"
                                 control={form.control}
-                                render={({ field }) => <Textarea id="successMessage" {...field} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Textarea id="successMessage" {...field} onBlur={handleBlurUpdate('successMessage')} />}
                             />
+                              {errors.successMessage && <p className="text-sm text-destructive">{(errors.successMessage as any)?.message}</p>}
                           </div>
-                         <p className="text-sm text-muted-foreground">Form fields definition coming soon...</p>
+                         <p className="text-sm text-muted-foreground pt-2">Form fields configuration coming soon...</p>
                      </>
                  );
-                  break; // Added break statement
+                  break;
             case 'text':
                  specificFields = (
                      <>
@@ -396,115 +481,133 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                              <Controller
                                 name="content"
                                 control={form.control}
-                                render={({ field }) => <Textarea id="content" {...field} rows={4} onBlur={handleBlurUpdate} />}
+                                render={({ field }) => <Textarea id="content" {...field} rows={4} onBlur={handleBlurUpdate('content')} />}
                             />
+                             {errors.content && <p className="text-sm text-destructive">{(errors.content as any)?.message}</p>}
                          </div>
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="fontSize">Font Size</Label>
-                                <Controller
-                                    name="fontSize"
-                                    control={form.control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <SelectTrigger id="fontSize"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="xs">Extra Small</SelectItem>
-                                                <SelectItem value="sm">Small</SelectItem>
-                                                <SelectItem value="base">Base</SelectItem>
-                                                <SelectItem value="lg">Large</SelectItem>
-                                                <SelectItem value="xl">XL</SelectItem>
-                                                <SelectItem value="2xl">2XL</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
+                                <Controller name="fontSize" control={form.control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger id="fontSize"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="xs">XS</SelectItem>
+                                            <SelectItem value="sm">SM</SelectItem>
+                                            <SelectItem value="base">Base</SelectItem>
+                                            <SelectItem value="lg">LG</SelectItem>
+                                            <SelectItem value="xl">XL</SelectItem>
+                                            <SelectItem value="2xl">2XL</SelectItem>
+                                            <SelectItem value="3xl">3XL</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )} />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="alignment">Alignment</Label>
-                                <Controller
-                                    name="alignment"
-                                    control={form.control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <SelectTrigger id="alignment"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="left">Left</SelectItem>
-                                                <SelectItem value="center">Center</SelectItem>
-                                                <SelectItem value="right">Right</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
+                                <Controller name="alignment" control={form.control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger id="alignment"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="left">Left</SelectItem>
+                                            <SelectItem value="center">Center</SelectItem>
+                                            <SelectItem value="right">Right</SelectItem>
+                                            <SelectItem value="justify">Justify</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )} />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="textColor">Text Color</Label>
+                                <Controller name="textColor" control={form.control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger id="textColor"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="default">Default</SelectItem>
+                                            <SelectItem value="primary">Primary</SelectItem>
+                                            <SelectItem value="secondary">Secondary</SelectItem>
+                                            <SelectItem value="accent">Accent</SelectItem>
+                                            <SelectItem value="muted">Muted</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )} />
                             </div>
                           </div>
-                          <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-4 pt-2">
                                 <div className="flex items-center space-x-2">
-                                    <Controller name="isBold" control={form.control} render={({ field }) => <Checkbox id="isBold" checked={field.value} onCheckedChange={field.onChange} />} />
+                                    <Controller name="isBold" control={form.control} render={({ field }) => <Checkbox id="isBold" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
                                     <Label htmlFor="isBold">Bold</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                    <Controller name="isItalic" control={form.control} render={({ field }) => <Checkbox id="isItalic" checked={field.value} onCheckedChange={field.onChange} />} />
+                                    <Controller name="isItalic" control={form.control} render={({ field }) => <Checkbox id="isItalic" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
                                     <Label htmlFor="isItalic">Italic</Label>
                                 </div>
                           </div>
                      </>
                  );
-                  break; // Added break statement
+                  break;
              case 'button':
                  specificFields = (
                     <>
                         <div className="space-y-2">
                             <Label htmlFor="buttonText">Button Text</Label>
-                             <Controller name="buttonText" control={form.control} render={({ field }) => <Input id="buttonText" {...field} onBlur={handleBlurUpdate}/>} />
+                             <Controller name="buttonText" control={form.control} render={({ field }) => <Input id="buttonText" {...field} onBlur={handleBlurUpdate('buttonText')}/>} />
+                             {errors.buttonText && <p className="text-sm text-destructive">{(errors.buttonText as any)?.message}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="linkUrl">Link URL</Label>
-                             <Controller name="linkUrl" control={form.control} render={({ field }) => <Input id="linkUrl" placeholder="https://..." {...field} onBlur={handleBlurUpdate} />} />
-                              {form.formState.errors.linkUrl && <p className="text-sm text-destructive">{(form.formState.errors.linkUrl as { message?: string })?.message}</p>}
+                             <Controller name="linkUrl" control={form.control} render={({ field }) => <Input id="linkUrl" placeholder="https://..." {...field} onBlur={handleBlurUpdate('linkUrl')} />} />
+                              {errors.linkUrl && <p className="text-sm text-destructive">{(errors.linkUrl as any)?.message}</p>}
                         </div>
-                         <div className="grid grid-cols-2 gap-4">
+                         <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="variant">Variant</Label>
-                                <Controller
-                                    name="variant"
-                                    control={form.control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <SelectTrigger id="variant"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="default">Default</SelectItem>
-                                                <SelectItem value="destructive">Destructive</SelectItem>
-                                                <SelectItem value="outline">Outline</SelectItem>
-                                                <SelectItem value="secondary">Secondary</SelectItem>
-                                                <SelectItem value="ghost">Ghost</SelectItem>
-                                                <SelectItem value="link">Link</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
+                                <Controller name="variant" control={form.control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger id="variant"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="default">Default</SelectItem>
+                                            <SelectItem value="destructive">Destructive</SelectItem>
+                                            <SelectItem value="outline">Outline</SelectItem>
+                                            <SelectItem value="secondary">Secondary</SelectItem>
+                                            <SelectItem value="ghost">Ghost</SelectItem>
+                                            <SelectItem value="link">Link</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )} />
                             </div>
                             <div className="space-y-2">
+                                <Label htmlFor="size">Size</Label>
+                                <Controller name="size" control={form.control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger id="size"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="default">Default</SelectItem>
+                                            <SelectItem value="sm">Small</SelectItem>
+                                            <SelectItem value="lg">Large</SelectItem>
+                                            <SelectItem value="icon">Icon</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )} />
+                            </div>
+                             <div className="space-y-2">
                                 <Label htmlFor="alignment">Alignment</Label>
-                                <Controller
-                                    name="alignment"
-                                    control={form.control}
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} value={field.value}>
-                                            <SelectTrigger id="alignment"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="left">Left</SelectItem>
-                                                <SelectItem value="center">Center</SelectItem>
-                                                <SelectItem value="right">Right</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
+                                <Controller name="alignment" control={form.control} render={({ field }) => (
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <SelectTrigger id="alignment"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="left">Left</SelectItem>
+                                            <SelectItem value="center">Center</SelectItem>
+                                            <SelectItem value="right">Right</SelectItem>
+                                            <SelectItem value="full">Full Width</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                )} />
                             </div>
                         </div>
                     </>
                  );
-                  break; // Added break statement
+                  break;
              case 'spacer':
                  specificFields = (
                     <div className="space-y-2">
@@ -512,37 +615,57 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                          <Controller
                             name="height"
                             control={form.control}
-                            render={({ field }) => <Slider id="height" min={1} max={40} step={1} value={[field.value ?? 0]} onValueChange={val => field.onChange(val[0])} />}
+                            render={({ field }) => <Slider id="height" min={1} max={40} step={1} value={[field.value ?? 4]} onValueChange={val => field.onChange(val[0])} aria-label="Spacer Height"/>}
                         />
                         <p className="text-xs text-muted-foreground">Adjust the vertical space (1 unit ≈ 0.25rem).</p>
+                         {errors.height && <p className="text-sm text-destructive">{(errors.height as any)?.message}</p>}
                     </div>
                  );
-                  break; // Added break statement
+                  break;
              case 'map':
                   specificFields = (
                     <>
                         <div className="space-y-2">
                             <Label htmlFor="address">Address or Location</Label>
-                            <Controller name="address" control={form.control} render={({ field }) => <Textarea id="address" {...field} rows={2} placeholder="e.g., 1 Infinite Loop, Cupertino, CA" onBlur={handleBlurUpdate} />} />
+                            <Controller name="address" control={form.control} render={({ field }) => <Textarea id="address" {...field} rows={2} placeholder="e.g., 1 Infinite Loop, Cupertino, CA" onBlur={handleBlurUpdate('address')} />} />
+                             {errors.address && <p className="text-sm text-destructive">{(errors.address as any)?.message}</p>}
                         </div>
                          <div className="space-y-2">
                             <Label htmlFor="zoomLevel">Zoom Level ({form.watch('zoomLevel')})</Label>
-                            <Controller name="zoomLevel" control={form.control} render={({ field }) => <Slider id="zoomLevel" min={1} max={20} step={1} value={[field.value ?? 15]} onValueChange={val => field.onChange(val[0])} />} />
+                            <Controller name="zoomLevel" control={form.control} render={({ field }) => <Slider id="zoomLevel" min={1} max={20} step={1} value={[field.value ?? 15]} onValueChange={val => field.onChange(val[0])} aria-label="Map Zoom Level" />} />
+                             {errors.zoomLevel && <p className="text-sm text-destructive">{(errors.zoomLevel as any)?.message}</p>}
                          </div>
-                         <div className="flex items-center space-x-2">
-                            <Controller name="showMarker" control={form.control} render={({ field }) => <Checkbox id="showMarker" checked={field.value} onCheckedChange={field.onChange} />} />
-                            <Label htmlFor="showMarker">Show Marker</Label>
+                         <div className="grid grid-cols-2 gap-4">
+                             <div className="flex items-center space-x-2 pt-2">
+                                <Controller name="showMarker" control={form.control} render={({ field }) => <Checkbox id="showMarker" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="showMarker">Show Marker</Label>
+                             </div>
+                             <div className="space-y-2">
+                                <Label htmlFor="mapStyle">Map Style</Label>
+                                <Controller name="mapStyle" control={form.control}
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <SelectTrigger id="mapStyle"><SelectValue placeholder="Select style" /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="roadmap">Roadmap</SelectItem>
+                                                <SelectItem value="satellite">Satellite</SelectItem>
+                                                <SelectItem value="hybrid">Hybrid</SelectItem>
+                                                <SelectItem value="terrain">Terrain</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )} />
+                            </div>
                          </div>
                     </>
                   );
-                  break; // Added break statement
+                  break;
              case 'video':
                   specificFields = (
                     <>
                         <div className="space-y-2">
                             <Label htmlFor="videoUrl">Video URL</Label>
-                             <Controller name="videoUrl" control={form.control} render={({ field }) => <Input id="videoUrl" placeholder="https://youtube.com/watch?v=..." {...field} onBlur={handleBlurUpdate} />} />
-                            {form.formState.errors.videoUrl && <p className="text-sm text-destructive">{(form.formState.errors.videoUrl as { message?: string })?.message}</p>}
+                             <Controller name="videoUrl" control={form.control} render={({ field }) => <Input id="videoUrl" placeholder="https://youtube.com/watch?v=..." {...field} onBlur={handleBlurUpdate('videoUrl')} />} />
+                            {errors.videoUrl && <p className="text-sm text-destructive">{(errors.videoUrl as any)?.message}</p>}
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="aspectRatio">Aspect Ratio</Label>
@@ -557,28 +680,40 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                                             <SelectItem value="4/3">4:3 (Standard)</SelectItem>
                                             <SelectItem value="1/1">1:1 (Square)</SelectItem>
                                             <SelectItem value="9/16">9:16 (Vertical)</SelectItem>
+                                            <SelectItem value="auto">Auto</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 )}
                             />
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <Controller name="autoplay" control={form.control} render={({ field }) => <Checkbox id="autoplay" checked={field.value} onCheckedChange={field.onChange} />} />
-                            <Label htmlFor="autoplay">Autoplay (Use with caution)</Label>
+                        <div className="flex items-center space-x-4 pt-2">
+                            <div className="flex items-center space-x-2">
+                                <Controller name="autoplay" control={form.control} render={({ field }) => <Checkbox id="autoplay" checked={field.value ?? false} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="autoplay">Autoplay (Use with caution)</Label>
+                             </div>
+                              <div className="flex items-center space-x-2">
+                                <Controller name="showControls" control={form.control} render={({ field }) => <Checkbox id="showControls" checked={field.value ?? true} onCheckedChange={field.onChange} />} />
+                                <Label htmlFor="showControls">Show Controls</Label>
+                             </div>
                          </div>
                     </>
                   );
-                  break; // Added break statement
+                  break;
             default:
-                specificFields = <p className="text-sm text-muted-foreground">No configuration available for this widget type.</p>;
+                specificFields = <p className="text-sm text-muted-foreground">No specific configuration available for this widget type.</p>;
         }
 
          // Combine common and specific fields
          return (
             <>
               {specificFields}
-              {selectedWidget.type !== 'spacer' && <hr className="my-4 border-border" />}
-              {selectedWidget.type !== 'spacer' && renderCommonFields()}
+              {/* Render common margin fields only if the widget type is not 'spacer' */}
+              {selectedWidget.type !== 'spacer' && (
+                <>
+                   <hr className="my-4 border-border" />
+                   {renderCommonFields()}
+                </>
+              )}
             </>
         );
     };
@@ -589,7 +724,7 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
             <Card className="flex-1 overflow-hidden bg-card shadow-none border-0">
                 <CardHeader className="pb-4 pt-0 px-2">
                     <CardTitle className="text-lg capitalize">
-                        {selectedWidget ? `${selectedWidget.type} Settings` : 'Select a Widget'}
+                        {selectedWidget ? `${selectedWidget.name || selectedWidget.type} Settings` : 'Select a Widget'}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 overflow-y-auto h-[calc(100%-theme(spacing.16))] px-2 pb-4"> {/* Adjust height based on header */}
@@ -597,7 +732,7 @@ export function ConfigurationPanel({ selectedWidget, updateWidgetConfig }: Confi
                         <form
                             onSubmit={(e) => e.preventDefault()} // Prevent default browser submission
                             className="space-y-4"
-                            key={selectedWidget.id} // Force re-render on widget change
+                            key={selectedWidget.id} // Force re-render and reset on widget change
                         >
                             {renderConfigFields()}
                         </form>

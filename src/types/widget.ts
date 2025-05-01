@@ -1,7 +1,19 @@
 
+
 /**
  * @fileOverview Defines the types for widgets used in the application builder.
  */
+
+/**
+ * Represents a widget definition available in the panel.
+ */
+ export interface WidgetDefinition {
+    id: string;
+    name: string;
+    icon: React.ElementType; // Lucide icon component
+    description: string;
+}
+
 
 /**
  * Represents a widget that has been dropped onto the phone preview area.
@@ -15,81 +27,95 @@ export interface DroppedWidget {
 
   /**
    * The type of the widget (e.g., 'grid', 'banner', 'list', 'form').
-   * This corresponds to the IDs in the `widgets` array in `WidgetPanel`.
+   * This corresponds to the `id` in `WidgetDefinition`.
    */
-  type: string; // 'banner' | 'grid' | 'list' | 'form' | 'text' | 'button' | 'spacer' | 'map' | 'video'; // Union type for better type safety
+  type: string; // Should match WidgetDefinition['id']
+
+   /**
+   * The display name of the widget (used in configuration panel title).
+   * Inherited from WidgetDefinition during drop.
+   */
+    name: string;
 
   /**
    * Configuration options specific to this widget instance.
    * The structure of this object depends on the `type` of the widget.
    */
-  config: BaseWidgetConfig & (BannerConfig | GridConfig | ListConfig | FormConfig | TextConfig | ButtonConfig | SpacerConfig | MapConfig | VideoConfig);
-  // Using discriminated union for better type safety based on 'type' field would be ideal,
-  // but for simplicity with react-hook-form, we'll keep it as a wider union for now.
-  // A helper function could assert the correct config type based on widget.type if needed.
+  config: Partial<BaseWidgetConfig & BannerConfig & GridConfig & ListConfig & FormConfig & TextConfig & ButtonConfig & SpacerConfig & MapConfig & VideoConfig>;
+  // Using Partial allows gradual building of the config object.
+  // The specific config type is enforced by the Zod schema in the ConfigurationPanel.
 }
 
 // --- Base Config ---
 export interface BaseWidgetConfig {
-    marginTop?: number;
-    marginBottom?: number;
+    marginTop: number; // Default: 2
+    marginBottom: number; // Default: 2
 }
 
 
-// --- Specific Widget Config Types ---
+// --- Specific Widget Config Types (Interface merging for better structure) ---
 
 export interface BannerConfig extends BaseWidgetConfig {
-  imageUrl?: string;
-  altText?: string;
-  linkUrl?: string;
+  imageUrl: string; // Optional handled by Zod schema
+  altText: string; // Optional handled by Zod schema
+  linkUrl: string; // Optional handled by Zod schema
+  imageFit: 'cover' | 'contain'; // Default: 'cover'
+  aspectRatio: '16/9' | '4/3' | '1/1' | '21/9' | 'auto'; // Default: '16/9'
 }
 
 export interface GridConfig extends BaseWidgetConfig {
-    columns?: '2' | '3' | '4';
-    gap?: number;
-    dataSource?: string; // Example: identifier for data fetching
+    columns: '1' | '2' | '3' | '4'; // Default: '2'
+    gap: number; // Default: 4
+    dataSource: string; // Optional handled by Zod schema
+    itemAspectRatio: '1/1' | '4/3' | '3/4' | '16/9'; // Default: '1/1'
 }
 
 export interface ListConfig extends BaseWidgetConfig {
-    itemLayout?: 'simple' | 'detailed' | 'image-left';
-    showDividers?: boolean;
-    dataSource?: string; // Example: identifier for data fetching
+    itemLayout: 'simple' | 'detailed' | 'image-left' | 'image-right'; // Default: 'simple'
+    showDividers: boolean; // Default: true
+    dataSource: string; // Optional handled by Zod schema
+    imageSize: 'sm' | 'md' | 'lg'; // Default: 'md'
 }
 
 export interface FormConfig extends BaseWidgetConfig {
-    submitButtonText?: string;
-    recipientEmail?: string;
-    successMessage?: string;
+    submitButtonText: string; // Default: 'Submit'
+    recipientEmail: string; // Optional handled by Zod schema
+    successMessage: string; // Default: 'Thank you...'
     // TODO: fields?: FormField[]; // Define structure for form fields
 }
 
 export interface TextConfig extends BaseWidgetConfig {
-    content?: string;
-    fontSize?: 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl';
-    alignment?: 'left' | 'center' | 'right';
-    isBold?: boolean;
-    isItalic?: boolean;
+    content: string; // Default: 'Enter text...'
+    fontSize: 'xs' | 'sm' | 'base' | 'lg' | 'xl' | '2xl' | '3xl'; // Default: 'base'
+    alignment: 'left' | 'center' | 'right' | 'justify'; // Default: 'left'
+    isBold: boolean; // Default: false
+    isItalic: boolean; // Default: false
+    textColor: 'default' | 'primary' | 'secondary' | 'accent' | 'muted'; // Default: 'default'
 }
 
 export interface ButtonConfig extends BaseWidgetConfig {
-    buttonText?: string;
-    linkUrl?: string;
-    variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
-    alignment?: 'left' | 'center' | 'right';
+    buttonText: string; // Default: 'Click Me'
+    linkUrl: string; // Optional handled by Zod schema
+    variant: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link'; // Default: 'default'
+    size: 'default' | 'sm' | 'lg' | 'icon'; // Default: 'default'
+    alignment: 'left' | 'center' | 'right' | 'full'; // Default: 'center'
+    // icon?: string; // Optional Lucide icon name
 }
 
 export interface SpacerConfig extends BaseWidgetConfig {
-    height?: number; // In Tailwind spacing units (e.g., 4 = 1rem)
+    height: number; // Default: 4 (In Tailwind spacing units, 1 = 0.25rem)
 }
 
 export interface MapConfig extends BaseWidgetConfig {
-    address?: string;
-    zoomLevel?: number;
-    showMarker?: boolean;
+    address: string; // Default: '1600 Amphitheatre...'
+    zoomLevel: number; // Default: 15
+    showMarker: boolean; // Default: true
+    mapStyle: 'roadmap' | 'satellite' | 'hybrid' | 'terrain'; // Default: 'roadmap'
 }
 
 export interface VideoConfig extends BaseWidgetConfig {
-    videoUrl?: string; // e.g., YouTube, Vimeo URL
-    aspectRatio?: '16/9' | '4/3' | '1/1' | '9/16';
-    autoplay?: boolean;
+    videoUrl: string; // Optional handled by Zod schema
+    aspectRatio: '16/9' | '4/3' | '1/1' | '9/16' | 'auto'; // Default: '16/9'
+    autoplay: boolean; // Default: false
+    showControls: boolean; // Default: true
 }
