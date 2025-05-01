@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import Link from 'next/link'; // Import Link
 import { cn } from '@/lib/utils';
 import {
     Smartphone, Trash2, MapPin, Video as VideoIconLucide, Type as TypeIcon,
@@ -270,13 +271,16 @@ export function PhonePreview({
     } else if (draggedWidgetId && !dropTargetId && widgets.length > 0) {
          // Dropped onto the container background (not a specific widget), move to the end
          console.log(`Internal drop: Dragged ${draggedWidgetId} to end`);
-         const lastWidgetId = widgets[widgets.length - 1].id;
-         const draggedWidget = widgets.find(w => w.id === draggedWidgetId);
+         const nonHeaderWidgets = widgets.filter(w => w.type !== 'header');
+         if (nonHeaderWidgets.length > 0) {
+            const lastWidgetId = nonHeaderWidgets[nonHeaderWidgets.length - 1].id;
+            const draggedWidget = widgets.find(w => w.id === draggedWidgetId);
 
-         if (draggedWidget?.type === 'header') {
-             console.log("Header cannot be moved via drag and drop.");
-          } else if (draggedWidgetId !== lastWidgetId) {
-             moveWidget(draggedWidgetId, lastWidgetId);
+            if (draggedWidget?.type === 'header') {
+                console.log("Header cannot be moved via drag and drop.");
+            } else if (draggedWidgetId !== lastWidgetId) {
+                moveWidget(draggedWidgetId, lastWidgetId);
+            }
          }
     }
 
@@ -498,14 +502,18 @@ export function PhonePreview({
                  <div className="flex items-center justify-between h-12 px-3 bg-card text-card-foreground shadow-sm w-full">
                      <div className="flex items-center gap-1">
                          {headerConfig.showBackButton && (
-                             <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground">
-                                 <ArrowLeft className="h-5 w-5" />
-                             </UiButton>
+                             <Link href="/previous-page" passHref>
+                                <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground" asChild>
+                                    <ArrowLeft className="h-5 w-5" />
+                                </UiButton>
+                             </Link>
                          )}
                          {headerConfig.showMenuButton && (
-                             <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground">
-                                 <Menu className="h-5 w-5" />
-                             </UiButton>
+                            <Link href="/menu" passHref>
+                                <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground" asChild>
+                                    <Menu className="h-5 w-5" />
+                                </UiButton>
+                             </Link>
                          )}
                      </div>
                      <h1 className="text-lg font-semibold text-center flex-1 truncate px-2">
@@ -513,17 +521,25 @@ export function PhonePreview({
                      </h1>
                      <div className="flex items-center gap-1">
                          {headerConfig.showCartIcon && (
-                             <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative">
-                                 <ShoppingCart className="h-5 w-5" />
-                                  {/* Basic badge simulation */}
-                                  <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
-                             </UiButton>
+                            <Link href="/cart" passHref>
+                                <UiButton variant="ghost" size="icon" className="h-8 w-8 text-foreground relative" asChild>
+                                    <>
+                                        <ShoppingCart className="h-5 w-5" />
+                                        {/* Basic badge simulation */}
+                                        <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-card bg-red-500" />
+                                    </>
+                                </UiButton>
+                            </Link>
                          )}
                           {headerConfig.showAuthButton && (
-                             <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground">
-                                 <User className="h-4 w-4 mr-1" />
-                                 {headerConfig.authButtonText || 'Login'}
-                             </UiButton>
+                             <Link href="/auth" passHref>
+                                <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground" asChild>
+                                    <>
+                                        <User className="h-4 w-4 mr-1" />
+                                        {headerConfig.authButtonText || 'Login'}
+                                    </>
+                                </UiButton>
+                            </Link>
                          )}
                      </div>
                  </div>
@@ -534,19 +550,26 @@ export function PhonePreview({
             const bannerConfig = safeConfig<BannerConfig>(widgetDefaultValuesMap.banner);
             const aspectRatioClassBanner = getAspectRatioClass(bannerConfig.aspectRatio);
             const imageFitClass = getImageFitClass(bannerConfig.imageFit);
+            const BannerElement = bannerConfig.linkUrl ? Link : 'div';
+            const bannerProps = bannerConfig.linkUrl ? { href: bannerConfig.linkUrl, target: '_blank', rel: 'noopener noreferrer' } : {};
+
             content = (
-                React.createElement(bannerConfig.linkUrl ? 'a' : 'div', {
-                    href: bannerConfig.linkUrl || undefined,
-                    target: bannerConfig.linkUrl ? '_blank' : undefined,
-                    rel: bannerConfig.linkUrl ? 'noopener noreferrer' : undefined,
-                    className: cn(
+                <BannerElement
+                    {...bannerProps}
+                    className={cn(
                         "relative block w-full rounded overflow-hidden bg-muted",
                         aspectRatioClassBanner || 'h-40',
                         !bannerConfig.imageUrl && 'flex items-center justify-center'
-                    ),
-                    'data-ai-hint': "website banner placeholder"
-                },
-                    bannerConfig.imageUrl ? (
+                    )}
+                    data-ai-hint="website banner placeholder"
+                     {...(bannerConfig.linkUrl ? { passHref: true } : {})} // Needed for Link wrapping custom component/div
+                >
+                     {/* Conditional rendering for anchor tag if it's not a Link */}
+                    {BannerElement === 'div' && bannerConfig.linkUrl ? (
+                        <a href={bannerConfig.linkUrl} target="_blank" rel="noopener noreferrer" className="absolute inset-0 z-10" aria-label={bannerConfig.altText || 'Banner link'}></a>
+                    ) : null}
+
+                    {bannerConfig.imageUrl ? (
                         <Image
                             key={bannerConfig.imageUrl}
                             src={bannerConfig.imageUrl}
@@ -559,16 +582,16 @@ export function PhonePreview({
                             onError={(e) => { console.error("Banner image failed:", bannerConfig.imageUrl); e.currentTarget.style.opacity = '0'; (e.currentTarget.nextElementSibling as HTMLElement)?.classList.remove('hidden'); }}
                             onLoad={(e) => { e.currentTarget.style.opacity = '1'; (e.currentTarget.nextElementSibling as HTMLElement)?.classList.add('hidden'); }}
                         />
-                    ) : null,
+                    ) : null}
                      <div className={cn(
-                         "banner-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs bg-muted/80 p-2 text-center",
+                         "banner-placeholder absolute inset-0 flex flex-col items-center justify-center text-muted-foreground text-xs bg-muted/80 p-2 text-center pointer-events-none", // Make placeholder non-interactive
                          bannerConfig.imageUrl ? "hidden" : ""
                      )}>
                         <ImageIcon className="w-10 h-10 mb-1 opacity-50" />
                         <span>Banner</span>
                         {!bannerConfig.imageUrl && <span className="text-[10px] mt-0.5">No Image URL</span>}
                     </div>
-                )
+                </BannerElement>
             );
             break;
         case 'grid':
@@ -681,17 +704,30 @@ export function PhonePreview({
             const buttonConfig = safeConfig<ButtonConfig>(widgetDefaultValuesMap.button);
             const btnAlignClass = getButtonAlignmentClass(buttonConfig.alignment);
             const btnSizeClass = getButtonSizeClass(buttonConfig.size);
+            const ButtonElement = buttonConfig.linkUrl ? Link : 'div'; // Use Link if linkUrl exists
+            const buttonProps = buttonConfig.linkUrl ? { href: buttonConfig.linkUrl, passHref: true } : {};
 
             content = (
                 <div className={cn("flex w-full py-1", btnAlignClass)}>
-                    <UiButton
-                        variant={buttonConfig.variant || 'default'}
-                        size={buttonConfig.size || 'default'}
-                        className={cn("pointer-events-none", {'w-full': buttonConfig.alignment === 'full'})}
-                         {...(buttonConfig.size === 'icon' ? { 'aria-label': buttonConfig.buttonText || 'Icon button' } : {})}
-                    >
-                        {buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")}
-                    </UiButton>
+                    <ButtonElement {...buttonProps}>
+                         {/* Use asChild if ButtonElement is Link */}
+                        <UiButton
+                            variant={buttonConfig.variant || 'default'}
+                            size={buttonConfig.size || 'default'}
+                             className={cn({'w-full': buttonConfig.alignment === 'full'})}
+                            {...(buttonConfig.size === 'icon' ? { 'aria-label': buttonConfig.buttonText || 'Icon button' } : {})}
+                             asChild={ButtonElement === Link} // Critical: Use asChild for Link wrapper
+                        >
+                             {/* Render content inside UiButton */}
+                            {ButtonElement === Link ? (
+                                <>
+                                {buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")}
+                                </>
+                            ) : (
+                                buttonConfig.size === 'icon' ? <ImageIcon className="h-4 w-4"/> : (buttonConfig.buttonText || "Button")
+                            )}
+                        </UiButton>
+                    </ButtonElement>
                 </div>
             );
             break;
@@ -953,3 +989,6 @@ In globals.css:
 }
 
 */
+
+
+    
