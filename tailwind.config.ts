@@ -13,6 +13,8 @@ const gapSafeList = Array.from({ length: 11 }, (_, i) => `gap-${i}`);
 const textColorSafeList = ['text-primary', 'text-secondary-foreground', 'text-accent', 'text-muted-foreground', 'text-foreground'];
 // Generate safe list for aspect ratios
 const aspectRatioSafeList = ['aspect-video', 'aspect-[4/3]', 'aspect-square', 'aspect-[9/16]', 'aspect-[21/9]', 'aspect-[3/4]'];
+// Generate safe list for border thickness used by Divider
+const thicknessSafeList = Array.from({ length: 10 }, (_, i) => `border-t-${i + 1}`);
 
 
 export default {
@@ -29,10 +31,15 @@ export default {
         ...gapSafeList,
         ...textColorSafeList,
         ...aspectRatioSafeList,
+        ...thicknessSafeList, // Add thickness safelist
         // Safelist font sizes just in case
         'text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl', 'text-3xl',
         // Safelist object fit
         'object-cover', 'object-contain',
+        // Safelist border styles
+        'border-solid', 'border-dashed', 'border-dotted',
+        // Safelist arbitrary thickness values (needed for Divider)
+        'border-t-[1px]', 'border-t-[2px]', 'border-t-[3px]', 'border-t-[4px]', 'border-t-[5px]', 'border-t-[6px]', 'border-t-[7px]', 'border-t-[8px]', 'border-t-[9px]', 'border-t-[10px]',
     ],
     theme: {
   	extend: {
@@ -94,26 +101,20 @@ export default {
   			sm: 'calc(var(--radius) - 4px)'
   		},
   		keyframes: {
-  			'accordion-down': {
-  				from: {
-  					height: '0'
-  				},
-  				to: {
-  					height: 'var(--radix-accordion-content-height)'
-  				}
-  			},
-  			'accordion-up': {
-  				from: {
-  					height: 'var(--radix-accordion-content-height)'
-  				},
-  				to: {
-  					height: '0'
-  				}
-  			}
+  			'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },
+  			'accordion-up': { from: { height: 'var(--radix-accordion-content-height)' }, to: { height: '0' } },
+            'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
+            'slide-in-up': { from: { transform: 'translateY(20px)', opacity: '0' }, to: { transform: 'translateY(0)', opacity: '1' } },
+            'slide-in-left': { from: { transform: 'translateX(-20px)', opacity: '0' }, to: { transform: 'translateX(0)', opacity: '1' } },
+            'zoom-in': { from: { transform: 'scale(0.95)', opacity: '0' }, to: { transform: 'scale(1)', opacity: '1' } },
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+            'fade-in': 'fade-in 0.5s ease-out forwards', // Added forwards
+            'slide-in-up': 'slide-in-up 0.5s ease-out forwards',
+            'slide-in-left': 'slide-in-left 0.5s ease-out forwards',
+            'zoom-in': 'zoom-in 0.3s ease-out forwards',
   		}
   	}
   },

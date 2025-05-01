@@ -9,13 +9,17 @@ import {
     Rows,
     MessageSquare,
     Type, // Text icon
-    MousePointerSquareDashed, // Button icon
+    MousePointerSquareDashed, // Button icon (Corrected)
     Space, // Spacer icon
     MapPin, // Map icon
     VideoIcon, // Video icon
     PanelTop, // Header icon
-    ShoppingCart, // Added for potential use, though integrated into header
-    User, // Added for potential use, though integrated into header
+    Minus, // Divider icon
+    Clock, // Countdown icon
+    GalleryHorizontalEnd, // Carousel icon
+    Volume2, // Audio icon
+    Share2, // Social Feed icon
+
 } from 'lucide-react';
 import { PlatformConnector } from './platform-connector'; // Import PlatformConnector
 import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
@@ -26,14 +30,19 @@ import type { WidgetDefinition } from '@/types/widget'; // Import WidgetDefiniti
 const widgets: WidgetDefinition[] = [
   { id: 'header', name: 'App Header', icon: PanelTop, description: 'Configurable top navigation bar.' },
   { id: 'banner', name: 'Banner Image', icon: ImageIcon, description: 'Display a prominent image with an optional link.' },
-  { id: 'grid', name: 'Product Grid', icon: LayoutGrid, description: 'Show products in a grid layout.' },
-  { id: 'list', name: 'Product List', icon: Rows, description: 'Display products in a list format.' },
+  { id: 'carousel', name: 'Image Carousel', icon: GalleryHorizontalEnd, description: 'Sliding gallery of images.' },
+  { id: 'grid', name: 'Product Grid', icon: LayoutGrid, description: 'Show items in a grid layout.' },
+  { id: 'list', name: 'Item List', icon: Rows, description: 'Display items in a list format.' },
   { id: 'text', name: 'Text Block', icon: Type, description: 'Add formatted text content.' },
   { id: 'button', name: 'Button', icon: MousePointerSquareDashed, description: 'Add a clickable button with a link.' },
   { id: 'spacer', name: 'Spacer', icon: Space, description: 'Add vertical space between elements.' },
+  { id: 'divider', name: 'Divider', icon: Minus, description: 'Visual line to separate sections.' },
   { id: 'form', name: 'Contact Form', icon: MessageSquare, description: 'Collect user input via a form.' },
   { id: 'map', name: 'Map', icon: MapPin, description: 'Embed an interactive map.' },
   { id: 'video', name: 'Video', icon: VideoIcon, description: 'Embed a video player.' },
+  { id: 'audio', name: 'Audio Player', icon: Volume2, description: 'Embed an audio player.' },
+  { id: 'countdown', name: 'Countdown Timer', icon: Clock, description: 'Display a timer for events/sales.' },
+  { id: 'social', name: 'Social Feed', icon: Share2, description: 'Embed feeds from social platforms.' },
 ];
 
 export function WidgetPanel() {
@@ -97,7 +106,17 @@ export function WidgetPanel() {
         </div>
       </ScrollArea>
       <div className="mt-auto pt-4 border-t border-border px-2">
-         <PlatformConnector />
+         {/* Placeholder for future features like App Settings or Publishing */}
+         {/* <PlatformConnector /> */}
+         <Card className="bg-card/50 shadow-none border-0">
+            <CardHeader className="p-3 pb-1">
+                <CardTitle className="text-base">App Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0 text-xs text-muted-foreground">
+                Configure global app settings, integrations, and publishing options here (coming soon).
+                 <PlatformConnector /> {/* Keep connector here for now */}
+            </CardContent>
+         </Card>
       </div>
 
     </div>

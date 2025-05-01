@@ -5,86 +5,124 @@ import React, { useState, useEffect } from 'react';
 import { WidgetPanel } from '@/components/widget-panel';
 import { PhonePreview } from '@/components/phone-preview';
 import { ConfigurationPanel } from '@/components/configuration-panel';
-import type { DroppedWidget } from '@/types/widget';
-import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults for initial state
+import type { DroppedWidget, AllWidgetConfigs } from '@/types/widget';
+import { widgetDefaultValuesMap, appTemplateDefaults } from '@/lib/widget-defaults'; // Import templates as well
 
 export default function Home() {
   const [widgets, setWidgets] = useState<DroppedWidget[]>([]);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string>('/'); // State for internal navigation
 
-  // Load initial widgets (optional, for demonstration)
+  // Load initial widgets from a default template
   useEffect(() => {
-    const initialWidgets: DroppedWidget[] = [
-        // Start with a header by default
-      { id: `header-${Date.now()}`, type: 'header', name: 'App Header', config: widgetDefaultValuesMap.header },
-      { id: 'banner-1', type: 'banner', name: 'Hero Banner', config: { ...widgetDefaultValuesMap.banner, imageUrl: 'https://picsum.photos/seed/proj_banner1/600/200', altText: 'Mountain Landscape', marginTop: 0, marginBottom: 0, aspectRatio: '16/9' } }, // Banner usually has no top margin
-      { id: 'text-1', type: 'text', name: 'Welcome Text', config: { ...widgetDefaultValuesMap.text, content: 'Build Your Mobile App Visually!', fontSize: 'xl', alignment: 'center', isBold: true, marginTop: 4, marginBottom: 2 } },
-      { id: 'grid-1', type: 'grid', name: 'Featured Products', config: { ...widgetDefaultValuesMap.grid, columns: '2', gap: 3, marginTop: 2, marginBottom: 4, itemAspectRatio: '1/1', dataSource:'api/products' } }, // Example with data source
-      { id: 'button-1', type: 'button', name: 'Call to Action', config: { ...widgetDefaultValuesMap.button, buttonText: 'Get Started', variant: 'primary', alignment: 'center', marginTop: 0, marginBottom: 4, size: 'lg' } },
-      { id: 'spacer-1', type: 'spacer', name: 'Spacer', config: { ...widgetDefaultValuesMap.spacer, height: 2 } },
-      { id: 'list-1', type: 'list', name: 'News Feed', config: { ...widgetDefaultValuesMap.list, itemLayout: 'image-left', showDividers: true, imageSize: 'sm', marginTop: 2, marginBottom: 2, dataSource:'api/news' } }, // Example with data source
-    ];
-    setWidgets(initialWidgets);
-     // Select the header initially if it exists
-     const header = initialWidgets.find(w => w.type === 'header');
-     if (header) {
-         setSelectedWidgetId(header.id);
+     // Load from local storage first, otherwise use template
+     if (typeof window !== 'undefined') {
+        const savedWidgets = localStorage.getItem('cmsAppStudioWidgets');
+        const savedUrl = localStorage.getItem('cmsAppStudioPreviewUrl');
+
+        if (savedWidgets) {
+            try {
+              const parsedWidgets = JSON.parse(savedWidgets);
+              if (Array.isArray(parsedWidgets) && parsedWidgets.length > 0) { // Load only if not empty
+                setWidgets(parsedWidgets);
+                 // Select header if exists in saved data
+                 const header = parsedWidgets.find((w: DroppedWidget) => w.type === 'header');
+                 if (header) {
+                     setSelectedWidgetId(header.id);
+                 }
+              } else {
+                 // If saved data is empty, load default template
+                  loadTemplate('store'); // Load 'store' template by default
+              }
+            } catch (e) {
+              console.error("Failed to parse widgets from local storage, loading default:", e);
+               loadTemplate('store');
+            }
+          } else {
+            // No saved widgets, load default template
+             loadTemplate('store');
+          }
+
+         if (savedUrl) {
+             setCurrentPreviewUrl(savedUrl);
+         } else {
+             setCurrentPreviewUrl('/'); // Default to home if no saved URL
+         }
+
+     } else {
+        // Fallback for SSR or environments without window (shouldn't happen in 'use client')
+         loadTemplate('store');
      }
-    // Consider loading from localStorage here if needed
-  }, []);
+
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
+
+    // Function to load template and set initial state
+   const loadTemplate = (templateName: keyof typeof appTemplateDefaults) => {
+        const templateWidgets = appTemplateDefaults[templateName] || [];
+        const uniqueTemplateWidgets = templateWidgets.map(w => ({
+            ...w,
+            id: `${w.type}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+        }));
+        setWidgets(uniqueTemplateWidgets);
+        const header = uniqueTemplateWidgets.find(w => w.type === 'header');
+        setSelectedWidgetId(header ? header.id : null);
+        setCurrentPreviewUrl('/'); // Reset URL when loading template
+   };
+
+
+  // Save to local storage whenever widgets or URL change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('cmsAppStudioWidgets', JSON.stringify(widgets));
+      localStorage.setItem('cmsAppStudioPreviewUrl', currentPreviewUrl);
+    }
+  }, [widgets, currentPreviewUrl]);
 
   // Find the selected widget configuration
   const selectedWidget = widgets.find(w => w.id === selectedWidgetId) || null;
 
   // Function to update a specific widget's configuration
-  const updateWidgetConfig = (widgetId: string, newConfig: Partial<DroppedWidget['config']>) => {
+  const updateWidgetConfig = (widgetId: string, newConfig: Partial<AllWidgetConfigs>) => {
     console.log(`Updating widget ${widgetId} with config:`, newConfig);
     setWidgets(prevWidgets =>
       prevWidgets.map(widget =>
         widget.id === widgetId
           ? {
               ...widget,
-              // Ensure preservation of existing config keys not present in newConfig
-               config: { ...widget.config, ...newConfig },
+              config: { ...(widget.config || {}), ...newConfig }, // Ensure proper merging
             }
           : widget
       )
     );
-    // Keep the current widget selected after update
-    setSelectedWidgetId(widgetId);
+    setSelectedWidgetId(widgetId); // Keep selected
   };
 
   // Function to handle adding a new widget
   const addWidget = (newWidget: DroppedWidget) => {
     setWidgets((prevWidgets) => [...prevWidgets, newWidget]);
     setSelectedWidgetId(newWidget.id); // Select the newly added widget
+    setCurrentPreviewUrl('/'); // Navigate back to home view when adding widget
   };
 
  // Function to handle reordering widgets (excluding header)
   const moveWidget = (draggedId: string, targetId: string) => {
     setWidgets((prevWidgets) => {
-        const draggedIndex = prevWidgets.findIndex(w => w.id === draggedId && w.type !== 'header'); // Don't find header
-        const targetIndex = prevWidgets.findIndex(w => w.id === targetId && w.type !== 'header'); // Don't target header
+        const draggedIndex = prevWidgets.findIndex(w => w.id === draggedId && w.type !== 'header');
+        const targetIndex = prevWidgets.findIndex(w => w.id === targetId && w.type !== 'header');
 
-        // Don't allow moving if header is involved or indices are invalid/same
-        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
-            return prevWidgets;
-        }
+        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) { return prevWidgets; }
 
         const newWidgets = [...prevWidgets];
-        const [draggedWidget] = newWidgets.splice(draggedIndex, 1); // Remove dragged item
-
-        // Adjust target index if dragging downwards over the original position
+        const [draggedWidget] = newWidgets.splice(draggedIndex, 1);
         const finalTargetIndex = draggedIndex < targetIndex ? targetIndex : targetIndex;
-
-        // Insert dragged item at the target index (adjusting for potential header)
         newWidgets.splice(finalTargetIndex, 0, draggedWidget);
 
         console.log(`Moved widget ${draggedId} to index ${finalTargetIndex}`);
         return newWidgets;
     });
-     // Keep the dragged widget selected after move
-    setSelectedWidgetId(draggedId);
+    setSelectedWidgetId(draggedId); // Keep selected
+     setCurrentPreviewUrl('/'); // Ensure we are on home view after reorder
   };
 
 
@@ -99,29 +137,29 @@ export default function Home() {
       <main className="flex-1 flex items-center justify-center p-4 md:p-8 bg-muted/30">
         <PhonePreview
           widgets={widgets}
-          setWidgets={setWidgets} // Pass the setter for direct deletion
+          setWidgets={setWidgets} // Pass setter for direct deletion/updates
           selectedWidgetId={selectedWidgetId}
           setSelectedWidgetId={setSelectedWidgetId}
-          addWidget={addWidget} // Pass addWidget function
-          moveWidget={moveWidget} // Pass moveWidget function
+          addWidget={addWidget}
+          moveWidget={moveWidget}
+          updateWidgetConfig={updateWidgetConfig} // Pass update function
+          currentPreviewUrl={currentPreviewUrl} // Pass current URL
+          setCurrentPreviewUrl={setCurrentPreviewUrl} // Pass URL setter
         />
       </main>
 
-      {/* Right Panel: Configuration & Theme */}
-       {/* Use flex-col to stack ConfigurationPanel and ThemeSelector */}
+      {/* Right Panel: Configuration */}
       <aside className="w-1/4 max-w-sm border-l bg-secondary overflow-y-auto shadow-md z-10 flex flex-col">
-         {/* Configuration Panel takes most space */}
         <ConfigurationPanel
           selectedWidget={selectedWidget}
           updateWidgetConfig={updateWidgetConfig}
-          className="flex-grow" // Use flex-grow to take available space
+          className="flex-grow"
+          widgets={widgets} // Pass all widgets for context
+          setWidgets={setWidgets} // Pass for template loading
+          setSelectedWidgetId={setSelectedWidgetId} // Pass for template focus reset
+          currentPreviewUrl={currentPreviewUrl} // Pass for context
+          setCurrentPreviewUrl={setCurrentPreviewUrl} // Pass for context
         />
-         {/* Theme Selector is fixed at the bottom - removed from here, now inside ConfigPanel */}
-         {/*
-           <div className="mt-auto p-4 border-t border-border">
-              <ThemeSelector />
-           </div>
-         */}
       </aside>
     </div>
   );
