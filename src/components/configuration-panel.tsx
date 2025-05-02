@@ -1,7 +1,7 @@
 // Designed by Mohammad Babaei (adschi.com)
  'use client';
 
- import React, { useEffect, useState, useCallback } from 'react';
+ import React, { useEffect, useState, useCallback, useRef } from 'react'; // Added useRef here
  import { zodResolver } from '@hookform/resolvers/zod';
  import { useForm, Controller, useFieldArray } from 'react-hook-form';
  import { z } from 'zod';
