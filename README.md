@@ -1,7 +1,5 @@
 # CMS App Studio
 
-# CMS App Studio
-
 **Designed by Mohammad Babaei ([adschi.com](https://adschi.com))**
 
 Visually build mobile app interfaces for your Content Management System (CMS). This application provides a drag-and-drop interface to design app layouts using pre-built widgets, configure their appearance and behavior, and preview the result in real-time.
