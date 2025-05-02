@@ -19,6 +19,8 @@ import {
     GalleryHorizontalEnd, // Carousel icon
     Volume2, // Audio icon
     Share2, // Social Feed icon
+    Camera, // Camera Icon
+    Bell, // Push Notification Icon
 
 } from 'lucide-react';
 import { PlatformConnector } from './platform-connector'; // Import PlatformConnector
@@ -43,6 +45,9 @@ const widgets: WidgetDefinition[] = [
   { id: 'audio', name: 'Audio Player', icon: Volume2, description: 'Embed an audio player.' },
   { id: 'countdown', name: 'Countdown Timer', icon: Clock, description: 'Display a timer for events/sales.' },
   { id: 'social', name: 'Social Feed', icon: Share2, description: 'Embed feeds from social platforms.' },
+  // --- NEW WIDGETS ---
+  { id: 'camera', name: 'Camera View', icon: Camera, description: 'Access and display the device camera.' },
+  { id: 'pushNotification', name: 'Push Notifications', icon: Bell, description: 'Configure and manage push notifications (Setup).' },
 ];
 
 export function WidgetPanel() {

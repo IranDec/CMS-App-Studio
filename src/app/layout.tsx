@@ -6,6 +6,7 @@ import { GeistMono } from 'geist/font/mono'; // Import directly from /mono
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster'; // Import Toaster
 import { ThemeProvider } from '@/components/theme-provider'; // Import ThemeProvider
+import { AuthProvider } from '@/context/auth-context'; // Import AuthProvider
 
 // Note: Unlike next/font/google, geist/font exports the variables directly.
 // We don't call GeistSans() or GeistMono().
@@ -32,20 +33,23 @@ export default function RootLayout({
   return (
     // Add suppressHydrationWarning to ignore browser extension modifications
     // Moved suppressHydrationWarning to body tag as error seems related to attributes added there
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning={true}>
       <body
         suppressHydrationWarning={true} // Moved from html to body
         className={`${GeistSans.variable} ${GeistMono.variable} antialiased`} // Use imported objects directly
+        // Remove suppressHydrationWarning from body as it's on html
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <Toaster /> {/* Add Toaster component here */}
-        </ThemeProvider>
+        <AuthProvider> {/* Wrap with AuthProvider */}
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster /> {/* Add Toaster component here */}
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

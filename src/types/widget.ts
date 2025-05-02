@@ -66,6 +66,12 @@ export interface HeaderConfig {
   showCartIcon: boolean; // Default: true
   showAuthButton: boolean; // Default: true
   authButtonText: string; // Default: 'Login'
+  // Explicitly add optional base props for schema completeness
+  marginTop?: number;
+  marginBottom?: number;
+  animation?: string;
+  displayCondition?: string;
+  customCssClasses?: string;
 }
 
 export interface BannerConfig extends BaseWidgetConfig {
@@ -201,13 +207,12 @@ export interface DividerConfig extends BaseWidgetConfig {
 
 // --- Other Placeholder Types ---
 
-// Placeholder for user/auth state (replace with actual context/library)
+// Authentication State (Using Firebase User type)
+export type { User } from 'firebase/auth';
 export interface AuthState {
     isAuthenticated: boolean;
-    user?: {
-        id: string;
-        role: 'admin' | 'editor' | 'viewer'; // Example roles
-    } | null;
+    user?: User | null; // Use Firebase User type
+    loading: boolean;
 }
 
 // Placeholder for version history entry
@@ -236,3 +241,4 @@ export type AllWidgetConfigs =
     | CountdownConfig
     | SocialFeedConfig
     | DividerConfig;
+

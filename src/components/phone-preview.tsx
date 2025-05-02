@@ -1,7 +1,7 @@
 // Designed by Mohammad Babaei (adschi.com)
 'use client';
 
-import React, { useState, useEffect, useRef, memo, useCallback } from 'react'; // Import useCallback
+import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link'; // Import Link
 import { cn } from '@/lib/utils';
@@ -26,36 +26,15 @@ import {
     Bell, // Push Notification placeholder
     ChevronLeft, // Carousel arrow
     ChevronRight, // Carousel arrow
+    EyeOff, // Icon for hidden state
 } from 'lucide-react';
 import { Button as UiButton } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import type { DroppedWidget, AllWidgetConfigs, BaseWidgetConfig, HeaderConfig, BannerConfig, GridConfig, ListConfig, FormConfig, TextConfig, ButtonConfig, SpacerConfig, MapConfig, VideoConfig, CarouselConfig, AudioConfig, CountdownConfig, SocialFeedConfig, DividerConfig, AuthState, CarouselItem } from '@/types/widget'; // Import AllWidgetConfigs and others
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Import Card components
+import type { DroppedWidget, AllWidgetConfigs, BaseWidgetConfig, HeaderConfig, BannerConfig, GridConfig, ListConfig, FormConfig, TextConfig, ButtonConfig, SpacerConfig, MapConfig, VideoConfig, CarouselConfig, AudioConfig, CountdownConfig, SocialFeedConfig, DividerConfig, AuthState, CarouselItem } from '@/types/widget';
 import { widgetDefaultValuesMap } from '@/lib/widget-defaults';
 import { useToast } from '@/hooks/use-toast'; // For geolocation/camera errors
-
-// Placeholder for auth context/state management
-const useAuth = (): AuthState => {
-  // In a real app, this would come from React Context, Zustand, Redux, etc.
-  // For now, simulate logged-out state. Toggle to test conditional display.
-  return {
-    isAuthenticated: false, // CHANGE THIS TO `true` TO SIMULATE LOGGED IN
-    user: null, // Or { id: '123', role: 'admin' }
-  };
-};
-
-
-interface PhonePreviewProps {
-  widgets: DroppedWidget[];
-  setWidgets: React.Dispatch<React.SetStateAction<DroppedWidget[]>>; // Keep for direct deletion/updates
-  selectedWidgetId: string | null;
-  setSelectedWidgetId: React.Dispatch<React.SetStateAction<string | null>>;
-  addWidget: (widget: DroppedWidget) => void; // Function to add a new widget
-  moveWidget: (draggedId: string, targetId: string) => void; // Function to reorder widgets
-  updateWidgetConfig: (widgetId: string, newConfig: Partial<AllWidgetConfigs>) => void; // To update config (e.g., location)
-  currentPreviewUrl: string; // Represents the currently viewed "page" within the preview
-  setCurrentPreviewUrl: (url: string) => void; // Function to change the previewed "page"
-}
-
+import { useAuthContext } from '@/context/auth-context'; // Import AuthContext hook
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'; // Import Alert
 
 // --- Helper Functions for Dynamic Classes (Keep existing helpers) ---
 const getMarginClass = (value: number | undefined, prefix: 'mt' | 'mb'): string => {
@@ -228,21 +207,16 @@ interface CarouselWidgetProps {
 }
 
 const CarouselWidget: React.FC<CarouselWidgetProps> = memo(({ config, handleNavigation }) => {
-     // --- Call the hook here ---
-     // Only call the hook if there are items to avoid unnecessary state/effects
+    // --- Call the hook here ---
+    // Only call the hook if there are items to avoid unnecessary state/effects
     const hasItems = config.items && config.items.length > 0;
-    // Conditionally call the hook
+
+    // Conditionally call the hook - Moved inside the component body
     const hookData = hasItems
         ? useCarousel(config.items.length, config.autoplay ?? false, config.delay ?? 3000)
-        : null; // Or provide a default state object if needed when no items
+        : { currentIndex: 0, nextSlide: () => {}, prevSlide: () => {}, goToSlide: () => {} }; // Default object
 
-    // Safely destructure hookData only if it exists
-    const { currentIndex, nextSlide, prevSlide, goToSlide } = hookData ?? {
-        currentIndex: 0,
-        nextSlide: () => {},
-        prevSlide: () => {},
-        goToSlide: () => {},
-    }; // Default object when no items or hook is null
+    const { currentIndex, nextSlide, prevSlide, goToSlide } = hookData;
 
     const { items, showArrows = true, showDots = true, aspectRatio } = config;
     const aspectRatioClassCarousel = getAspectRatioClass(aspectRatio);
@@ -250,14 +224,13 @@ const CarouselWidget: React.FC<CarouselWidgetProps> = memo(({ config, handleNavi
     if (!items || items.length === 0) {
         return (
             <div
-                className={cn("relative w-full rounded overflow-hidden bg-muted flex items-center justify-center min-h-[8rem] h-auto border border-dashed border-input p-4")}
+                className={cn("relative w-full rounded overflow-hidden bg-muted flex items-center justify-center min-h-[8rem] h-auto border border-dashed border-input p-4", aspectRatioClassCarousel || 'h-40')}
                 data-ai-hint="carousel placeholder"
             >
                 <div className="flex flex-col items-center justify-center text-muted-foreground text-xs text-center">
                     {React.createElement(GalleryHorizontalEnd, { className: "w-8 h-8 mb-2 opacity-50" })}
                     <span className="font-medium">Image Carousel</span>
                     <span className="text-[10px] mt-1">Add items in configuration</span>
-                    <span className="text-[10px] mt-2 italic">Configure in panel</span>
                 </div>
             </div>
         );
@@ -328,6 +301,18 @@ CarouselWidget.displayName = 'CarouselWidget';
 
 
 // --- Phone Preview Component ---
+interface PhonePreviewProps {
+  widgets: DroppedWidget[];
+  setWidgets: React.Dispatch<React.SetStateAction<DroppedWidget[]>>; // Keep for direct deletion/updates
+  selectedWidgetId: string | null;
+  setSelectedWidgetId: React.Dispatch<React.SetStateAction<string | null>>;
+  addWidget: (widget: DroppedWidget) => void; // Function to add a new widget
+  moveWidget: (draggedId: string, targetId: string) => void; // Function to reorder widgets
+  updateWidgetConfig: (widgetId: string, newConfig: Partial<AllWidgetConfigs>) => void; // To update config (e.g., location)
+  currentPreviewUrl: string; // Represents the currently viewed "page" within the preview
+  setCurrentPreviewUrl: (url: string) => void; // Function to change the previewed "page"
+}
+
 
 export function PhonePreview({
   widgets,
@@ -346,62 +331,20 @@ export function PhonePreview({
   const [isClient, setIsClient] = useState(false);
   const widgetsContainerRef = useRef<HTMLDivElement>(null); // Ref for the widgets container
   const fileInputRef = useRef<HTMLInputElement>(null); // Ref for the hidden file input
+  const videoRef = useRef<HTMLVideoElement>(null); // Ref for camera preview
   const [widgetIdForUpload, setWidgetIdForUpload] = useState<string | null>(null); // Track which widget triggers upload
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null); // Track camera permission
   const { toast } = useToast();
-  const authState = useAuth(); // Get current auth state
+  const authState = useAuthContext(); // Get current auth state from context
 
   useEffect(() => {
     setIsClient(true);
-     // Add listener for messages from iframes (e.g., embedded social feeds)
-    // window.addEventListener('message', handleIframeMessage);
-    // return () => window.removeEventListener('message', handleIframeMessage);
+     // Request camera permission on mount - conditionally based on a widget needing it?
+     // For now, request globally if needed by any component
+     // getCameraPermission(); // Moved this logic to a specific component or action
   }, []);
 
- // const handleIframeMessage = (event: MessageEvent) => {
-    // // Basic security check: ensure the message is from an expected origin
-    // const allowedOrigins = ["https://twitframe.com", "https://instagram.com", /* ... others */];
-    // if (!allowedOrigins.includes(event.origin)) {
-    //     console.warn("Message received from disallowed origin:", event.origin);
-    //     return;
-    // }
-    // console.log("Message from iframe:", event.data);
-    // // Handle iframe messages here (e.g., resize requests, errors)
- // };
-
-
-  // --- Local Storage Sync --- Moved to page.tsx to avoid hydration issues here
-  // useEffect(() => {
-  //   // Load widgets from local storage on initial mount
-  //   if (typeof window !== 'undefined') {
-  //     const savedWidgets = localStorage.getItem('cmsAppStudioWidgets');
-  //     if (savedWidgets) {
-  //       try {
-  //         const parsedWidgets = JSON.parse(savedWidgets);
-  //         if (Array.isArray(parsedWidgets)) {
-  //           setWidgets(parsedWidgets);
-  //         }
-  //       } catch (e) {
-  //         console.error("Failed to parse widgets from local storage:", e);
-  //       }
-  //     }
-  //      // Load last viewed URL
-  //      const savedUrl = localStorage.getItem('cmsAppStudioPreviewUrl');
-  //      if (savedUrl) {
-  //          setCurrentPreviewUrl(savedUrl);
-  //      }
-
-  //   }
-  // }, [setWidgets, setCurrentPreviewUrl]);
-
-  // useEffect(() => {
-  //   // Save widgets to local storage whenever they change
-  //   if (typeof window !== 'undefined') {
-  //     localStorage.setItem('cmsAppStudioWidgets', JSON.stringify(widgets));
-  //      // Save current preview URL
-  //      localStorage.setItem('cmsAppStudioPreviewUrl', currentPreviewUrl);
-  //   }
-  // }, [widgets, currentPreviewUrl]);
-
+  // --- Local Storage Sync (Already moved to page.tsx) ---
 
   // --- Drag and Drop Handlers (Keep existing logic) ---
   const handleContainerDragOver = (event: React.DragEvent<HTMLDivElement>) => {
@@ -589,20 +532,38 @@ export function PhonePreview({
            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Please select an image file.' });
            return;
        }
+        // Basic size check (e.g., 5MB)
+       const maxSizeInBytes = 5 * 1024 * 1024;
+       if (file.size > maxSizeInBytes) {
+            toast({ variant: 'destructive', title: 'Upload Failed', description: 'Image size exceeds 5MB limit.' });
+            return;
+       }
+
 
        const reader = new FileReader();
        reader.onloadend = () => {
            const dataUrl = reader.result as string;
            // Find the widget and update its imageUrl config
            const widgetToUpdate = widgets.find(w => w.id === widgetIdForUpload);
-           if (widgetToUpdate && (widgetToUpdate.type === 'banner' || widgetToUpdate.type === 'carousel')) { // Add other types if needed
-              if (widgetToUpdate.type === 'banner') {
-                   updateWidgetConfig(widgetIdForUpload, { imageUrl: dataUrl });
-              }
-              // TODO: Handle image upload for Carousel items (requires identifying which item)
-              toast({ title: 'Image Uploaded', description: `Updated image for ${widgetToUpdate.name}.` });
+           if (widgetToUpdate && (widgetToUpdate.type === 'banner')) { // Extend for carousel later
+               updateWidgetConfig(widgetIdForUpload, { imageUrl: dataUrl });
+               toast({ title: 'Image Uploaded', description: `Updated image for ${widgetToUpdate.name}.` });
+           } else if (widgetToUpdate && widgetToUpdate.type === 'carousel') {
+                // **Need logic to identify WHICH carousel item to update**
+                // This requires changes in how the upload button is triggered or managed.
+                // For now, let's just update the first item as a placeholder demonstration.
+                const currentItems = (widgetToUpdate.config as CarouselConfig)?.items || [];
+                if (currentItems.length > 0) {
+                     const newItems = [...currentItems];
+                     newItems[0] = { ...newItems[0], imageUrl: dataUrl }; // Update first item
+                     updateWidgetConfig(widgetIdForUpload, { items: newItems });
+                     toast({ title: 'Image Uploaded', description: `Updated first slide for ${widgetToUpdate.name}.` });
+                 } else {
+                    toast({ variant: 'destructive', title: 'Upload Error', description: 'Carousel has no slides to update.' });
+                 }
+
            } else {
-                toast({ variant: 'destructive', title: 'Upload Error', description: 'Could not apply image to the selected widget.' });
+                toast({ variant: 'destructive', title: 'Upload Error', description: 'Could not apply image to the selected widget type.' });
            }
            setWidgetIdForUpload(null); // Reset tracker
            if (event.target) event.target.value = ''; // Reset file input safely
@@ -616,7 +577,7 @@ export function PhonePreview({
    };
 
    // --- NEW: Geolocation Handler ---
-    const handleGetCurrentLocation = async (widgetId: string) => {
+    const handleGetCurrentLocation = useCallback(async (widgetId: string) => {
         if (typeof window === 'undefined' || !navigator.geolocation) {
             toast({ variant: 'destructive', title: 'Geolocation Error', description: 'Geolocation is not supported by your browser.' });
             return;
@@ -624,52 +585,94 @@ export function PhonePreview({
 
         toast({ title: 'Fetching Location...', description: 'Please wait.' });
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                // Attempt to reverse geocode (requires Google Maps API key or another service)
-                 // For now, just display coordinates
-                 const address = `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-                 console.log(`Got location for ${widgetId}:`, latitude, longitude);
-                updateWidgetConfig(widgetId, { address: address, useCurrentLocation: false }); // Update address and reset flag
-                 toast({ title: 'Location Found', description: `Map address updated to coordinates.` });
+        try {
+            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0,
+                });
+            });
 
-                // Example using a hypothetical geocoding service (replace with actual implementation)
-                /*
-                fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=YOUR_API_KEY`)
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.results && data.results[0]) {
-                      const formattedAddress = data.results[0].formatted_address;
-                      updateWidgetConfig(widgetId, { address: formattedAddress, useCurrentLocation: false });
-                      toast({ title: 'Location Found', description: `Map address updated.` });
-                    } else {
-                      throw new Error('No address found for coordinates.');
-                    }
-                  })
-                  .catch(error => {
-                    console.error("Geocoding error:", error);
-                    updateWidgetConfig(widgetId, { address: `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, useCurrentLocation: false }); // Fallback to coords
-                    toast({ variant: 'destructive', title: 'Geocoding Error', description: 'Could not find address. Displaying coordinates.' });
-                  });
-                */
-            },
-            (error) => {
-                 console.error("Geolocation error:", error);
-                 updateWidgetConfig(widgetId, { useCurrentLocation: false }); // Reset flag on error
-                 let message = 'Could not get your location.';
-                 if (error.code === error.PERMISSION_DENIED) {
-                     message = 'Geolocation permission denied. Please enable it in your browser settings.';
-                 } else if (error.code === error.POSITION_UNAVAILABLE) {
-                     message = 'Location information is unavailable.';
-                 } else if (error.code === error.TIMEOUT) {
-                     message = 'The request to get user location timed out.';
-                 }
-                toast({ variant: 'destructive', title: 'Geolocation Error', description: message });
-            },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Options
-        );
-    };
+            const { latitude, longitude } = position.coords;
+            // Attempt to reverse geocode (requires Google Maps API key or another service)
+             // For now, just display coordinates
+             const address = `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+             console.log(`Got location for ${widgetId}:`, latitude, longitude);
+            updateWidgetConfig(widgetId, { address: address, useCurrentLocation: false }); // Update address and reset flag
+             toast({ title: 'Location Found', description: `Map address updated to coordinates.` });
+
+            // Example using a hypothetical geocoding service (replace with actual implementation)
+            /*
+            fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=YOUR_API_KEY`)
+              .then(response => response.json())
+              .then(data => {
+                if (data.results && data.results[0]) {
+                  const formattedAddress = data.results[0].formatted_address;
+                  updateWidgetConfig(widgetId, { address: formattedAddress, useCurrentLocation: false });
+                  toast({ title: 'Location Found', description: `Map address updated.` });
+                } else {
+                  throw new Error('No address found for coordinates.');
+                }
+              })
+              .catch(error => {
+                console.error("Geocoding error:", error);
+                updateWidgetConfig(widgetId, { address: `Coords: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, useCurrentLocation: false }); // Fallback to coords
+                toast({ variant: 'destructive', title: 'Geocoding Error', description: 'Could not find address. Displaying coordinates.' });
+              });
+            */
+        } catch (error: any) {
+             console.error("Geolocation error:", error);
+             updateWidgetConfig(widgetId, { useCurrentLocation: false }); // Reset flag on error
+             let message = 'Could not get your location.';
+             if (error.code === error.PERMISSION_DENIED) {
+                 message = 'Geolocation permission denied. Please enable it in your browser settings.';
+             } else if (error.code === error.POSITION_UNAVAILABLE) {
+                 message = 'Location information is unavailable.';
+             } else if (error.code === error.TIMEOUT) {
+                 message = 'The request to get user location timed out.';
+             }
+            toast({ variant: 'destructive', title: 'Geolocation Error', description: message });
+        }
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [toast, updateWidgetConfig]); // Include updateWidgetConfig and toast in dependencies
+
+
+   // --- NEW: Camera Permission Handler ---
+    const getCameraPermission = useCallback(async () => {
+        if (typeof window === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            toast({
+                variant: 'destructive',
+                title: 'Camera Error',
+                description: 'Camera access is not supported by your browser.',
+            });
+            setHasCameraPermission(false);
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            setHasCameraPermission(true);
+            console.log("Camera access granted.");
+            // Set the stream to the video element
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+            }
+            // Clean up the stream when component unmounts or permission is revoked
+             // This needs better handling, maybe when the camera component is not visible anymore
+             // return () => {
+             //    stream.getTracks().forEach(track => track.stop());
+             // };
+        } catch (error) {
+            console.error('Error accessing camera:', error);
+            setHasCameraPermission(false);
+            toast({
+                variant: 'destructive',
+                title: 'Camera Access Denied',
+                description: 'Please enable camera permissions in your browser settings to use this feature.',
+            });
+        }
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [toast]); // Include toast in dependencies
 
 
   // --- Render Widget Content ---
@@ -683,8 +686,9 @@ export function PhonePreview({
     const shouldDisplay = () => {
         const condition = widget.config?.displayCondition || 'always';
         if (condition === 'always') return true;
-        if (condition === 'loggedIn' && authState.isAuthenticated) return true;
-        if (condition === 'loggedOut' && !authState.isAuthenticated) return true;
+        // Use authState from context
+        if (condition === 'loggedIn' && authState.user) return true;
+        if (condition === 'loggedOut' && !authState.user) return true;
         return false; // Don't display if conditions not met
     };
 
@@ -710,9 +714,10 @@ export function PhonePreview({
                  role="button" tabIndex={0} aria-label={`Widget: ${widget.name || widget.type}. Hidden (${widget.config.displayCondition}). Click to configure.`}
                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleWidgetClick(e as any, widget.id)}}
              >
-                <p className="text-xs italic text-center">
-                    Widget "{widget.name || widget.type}" is hidden (Condition: {widget.config.displayCondition})
-                </p>
+                <div className="flex items-center justify-center gap-2 text-xs italic">
+                    <EyeOff className="w-4 h-4"/>
+                    <span>Widget "{widget.name || widget.type}" is hidden (Condition: {widget.config.displayCondition})</span>
+                </div>
                 {/* Keep delete button accessible */}
                 <UiButton variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-50 group-hover:opacity-100 z-10 rounded-full shadow-md" onClick={(e) => { e.stopPropagation(); removeWidget(widget.id); }} aria-label={`Remove ${widget.name || widget.type} widget`} tabIndex={isSelected ? 0 : -1}>
                     <Trash2 className="h-3 w-3" />
@@ -802,7 +807,8 @@ export function PhonePreview({
                           {headerConfig.showAuthButton && (
                              <UiButton variant="ghost" size="sm" className="h-8 px-2 text-sm text-foreground" onClick={(e) => handleNavigation(e, '/auth')}>
                                 <User className="h-4 w-4 mr-1" />
-                                {authState.isAuthenticated ? (authState.user?.role || 'User') : (headerConfig.authButtonText || 'Login')}
+                                {/* Display user info or login text based on auth state */}
+                                {authState.user ? (authState.user.displayName || authState.user.email?.split('@')[0] || 'Account') : (headerConfig.authButtonText || 'Login')}
                             </UiButton>
                          )}
                      </div>
@@ -852,28 +858,22 @@ export function PhonePreview({
                         {!bannerConfig.imageUrl && <span className="text-[10px] mt-0.5">No Image URL</span>}
                     </div>
                      {/* --- NEW: Image Upload Button --- */}
-                     {/* Check for imageUploadEnabled flag before rendering */}
-                     {bannerConfig.imageUploadEnabled && (
+                     {/* Conditionally render upload button */}
+                     {isClient && bannerConfig.imageUploadEnabled && (
                          <UiButton
                             variant="secondary"
                             size="sm"
-                            className="absolute bottom-2 right-2 z-20 opacity-0 group-hover/banner:opacity-100 transition-opacity"
+                            className="absolute bottom-2 right-2 z-20 opacity-0 group-hover/banner:opacity-100 transition-opacity h-8 px-2 text-xs" // Smaller button
                             onClick={(e) => handleImageUploadClick(e, widget.id)}
                             aria-label="Upload banner image"
+                            title="Upload Image"
                         >
-                            <UploadCloud className="h-4 w-4 mr-2" /> Upload
+                            <UploadCloud className="h-3 w-3 mr-1" /> Upload
                         </UiButton>
                      )}
                  </BannerElement>
-                 {/* Hidden file input - Moved outside the BannerElement for simplicity */}
-                 <input
-                     type="file"
-                     ref={fileInputRef}
-                     onChange={handleFileChange}
-                     className="hidden"
-                     accept="image/*"
-                     id={`fileInput-${widget.id}`} // Unique ID might be useful
-                 />
+                 {/* Hidden file input - Ensure it exists and is unique if needed */}
+                 {isClient && <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" id={`fileInput-${widget.id}`} /> }
                 </div>
             );
             break;
@@ -900,7 +900,7 @@ export function PhonePreview({
                                  </div>
                              ))}
                          </div>
-                         <span className="text-xs text-muted-foreground block text-center pt-2">Grid ({gridConfig.columns} cols) - Data from: {gridConfig.dataSource}</span>
+                         <span className="text-xs text-muted-foreground block text-center pt-2">Grid ({gridConfig.columns} cols) - Data: {gridConfig.dataSource}</span>
                      </div>
                  ) : (
                      renderPlaceholder(LayoutGrid, "Product Grid", `Configure Data Source`)
@@ -933,14 +933,14 @@ export function PhonePreview({
                                          </div>
                                      }
                                      <div className="flex-1 space-y-1 min-w-0"> {/* Added min-w-0 */}
-                                          <div className={cn("h-3 bg-muted-foreground/80 rounded-full font-medium truncate", itemLayout === 'simple' ? 'w-5/6' : 'w-full')}>Item Title {i + 1} - Very Long Title That Might Overflow Otherwise</div>
-                                          {itemLayout !== 'simple' && <div className={cn("h-2.5 bg-muted-foreground/50 rounded-full text-xs truncate", 'w-2/3')}>Short description that could also be long...</div>}
+                                          <div className={cn("h-3 bg-muted-foreground/80 rounded-full font-medium truncate", itemLayout === 'simple' ? 'w-5/6' : 'w-full')}>Item Title {i + 1} - Very Long Title</div>
+                                          {itemLayout !== 'simple' && <div className={cn("h-2.5 bg-muted-foreground/50 rounded-full text-xs truncate", 'w-2/3')}>Short description...</div>}
                                      </div>
                                       {itemLayout === 'detailed' && <UiButton variant="ghost" size="icon" className="h-6 w-6 ml-auto flex-shrink-0"><ChevronRight className="h-4 w-4"/></UiButton>}
                                  </div>
                              ))}
                           </div>
-                         <span className="text-xs text-muted-foreground block text-center pt-2">List ({itemLayout}) - Data from: {listConfig.dataSource}</span>
+                         <span className="text-xs text-muted-foreground block text-center pt-2">List ({itemLayout}) - Data: {listConfig.dataSource}</span>
                      </div>
                   ) : (
                      renderPlaceholder(Rows, "Item List", `Configure Data Source`)
@@ -985,13 +985,14 @@ export function PhonePreview({
              // Basic handling for rich text (replace with actual editor rendering later)
              const renderContent = () => {
                  if (textConfig.enableRichText) {
-                     // In a real app, use a library like react-quill or tiptap to render HTML
-                     // For now, just render as text, but indicate it's rich text enabled.
+                     // Placeholder for actual rich text rendering
                      return (
                          <>
-                            <p className="text-[10px] text-muted-foreground italic mb-1">(Rich Text Enabled)</p>
+                             <div className="p-2 border border-dashed border-input rounded bg-muted text-xs text-muted-foreground italic flex items-center gap-2 mb-1">
+                                 <Palette className="w-4 h-4"/> Rich Text Enabled (Preview shows plain text)
+                             </div>
                              <p className={cn( textSizeClass, textColorClass, fontWeightClass, fontStyleClass, 'break-words whitespace-pre-wrap' )}>
-                                {textConfig.content || "Enter text..."}
+                                {textConfig.content || "Enter rich text..."}
                             </p>
                          </>
                      );
@@ -1057,20 +1058,12 @@ export function PhonePreview({
 
              // Effect to handle 'useCurrentLocation' - Trigger only when flag is true
             useEffect(() => {
-                // Ensure this effect runs only for the specific map widget instance
-                if (mapConfig.useCurrentLocation && widget.id === selectedWidgetId) { // Trigger only if selected or based on some logic
-                     // Check if address is already coordinates, maybe don't refetch
-                     if (!mapConfig.address?.startsWith('Coords:')) {
-                         handleGetCurrentLocation(widget.id);
-                     } else {
-                         console.log("Address is already coordinates, skipping refetch for", widget.id);
-                         // Optionally reset the flag if needed, or handle in config panel
-                         // updateWidgetConfig(widget.id, { useCurrentLocation: false });
-                     }
-                 }
-                 // Intentionally limiting dependencies to avoid loops. handleGetCurrentLocation dependency might be needed if it changes.
-                 // eslint-disable-next-line react-hooks/exhaustive-deps
-            }, [mapConfig.useCurrentLocation, widget.id, selectedWidgetId /*, handleGetCurrentLocation */]);
+                 // Check if the current widget matches the one that needs location and if the flag is set
+                if (widget.id === selectedWidgetId && mapConfig.useCurrentLocation) {
+                    handleGetCurrentLocation(widget.id);
+                }
+                 // Dependency includes the flag and the handler function (if it changes)
+            }, [widget.id, selectedWidgetId, mapConfig.useCurrentLocation, handleGetCurrentLocation]);
 
 
             content = (
@@ -1083,12 +1076,12 @@ export function PhonePreview({
                         <p className="text-xs px-2 text-center mt-1 text-white/80 truncate w-full">{mapConfig.address || "No address set"}</p>
                         {mapConfig.showMarker === false && <p className="text-[10px] text-yellow-400 mt-0.5">(Marker Hidden)</p>}
                         <p className="text-[10px] text-white/60 mt-1 capitalize">Style: {mapConfig.mapStyle || 'roadmap'}, Zoom: {mapConfig.zoomLevel || 15}</p>
-                        {/* Geolocation Button */}
-                        <UiButton
+                        {/* Geolocation Button - Trigger the flag update in config panel */}
+                         <UiButton
                             variant="secondary"
                             size="icon"
                             className="absolute bottom-2 right-2 z-10 h-7 w-7"
-                            onClick={(e) => {e.stopPropagation(); updateWidgetConfig(widget.id, {useCurrentLocation: true})}} // Set flag to true on click
+                            onClick={(e) => { e.stopPropagation(); updateWidgetConfig(widget.id, { useCurrentLocation: true }); }} // Directly trigger the flag
                             aria-label="Get current location"
                             title="Use Current Location"
                         >
@@ -1111,6 +1104,7 @@ export function PhonePreview({
                          videoConfig.videoUrl ? (
                              // Basic iframe for common video platforms (YouTube, Vimeo)
                              <iframe
+                                key={videoConfig.videoUrl} // Re-render if URL changes
                                 src={videoConfig.videoUrl.includes('youtube.com') || videoConfig.videoUrl.includes('youtu.be') ? `https://www.youtube.com/embed/${videoConfig.videoUrl.split('v=')[1]?.split('&')[0] || videoConfig.videoUrl.split('/').pop()}` : videoConfig.videoUrl} // Simple URL parsing
                                 title="Video Player Preview"
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -1264,6 +1258,42 @@ export function PhonePreview({
                 </div>
             );
             break;
+         // --- NEW WIDGETS FOR MOBILE FEATURES ---
+         case 'camera':
+             content = (
+                 <div className="p-2 border border-dashed rounded border-input bg-muted">
+                     <p className="text-sm font-medium text-center mb-2">Camera Preview</p>
+                      {/* Always render video tag to avoid hydration issues, hide if no permission */}
+                      <video ref={videoRef} className={cn("w-full aspect-video rounded-md bg-black", { 'hidden': hasCameraPermission === false })} autoPlay muted />
+
+                     {hasCameraPermission === null && ( // Initial state: loading/asking
+                         <div className="text-center py-4">
+                             <p className="text-xs text-muted-foreground">Requesting camera access...</p>
+                         </div>
+                     )}
+                     {hasCameraPermission === false && ( // Permission denied state
+                        <Alert variant="destructive" className="mt-2">
+                          <AlertTitle>Camera Access Required</AlertTitle>
+                          <AlertDescription>
+                            Please allow camera access to use this feature.
+                          </AlertDescription>
+                       </Alert>
+                     )}
+                      <UiButton
+                        variant="outline" size="sm" className="mt-2 w-full"
+                        onClick={(e) => {e.stopPropagation(); getCameraPermission();}} // Request permission on click
+                        disabled={hasCameraPermission === true} // Disable if already granted
+                     >
+                        {hasCameraPermission === true ? 'Camera Active' : 'Enable Camera'}
+                     </UiButton>
+                 </div>
+             );
+             break;
+
+         case 'pushNotification':
+             content = renderPlaceholder(Bell, "Push Notification Setup", "Configure notification settings");
+             break;
+
 
       default:
          // Fallback for any unhandled widget types
@@ -1436,6 +1466,16 @@ interface PreviewPagePlaceholderProps {
     currentUrl: string; // Add current URL for context
 }
 const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, icon: Icon, backAction, currentUrl }) => {
+    // Example: Render specific content for auth page
+    if (currentUrl === '/auth') {
+        return <AuthPagePlaceholder backAction={backAction} />;
+    }
+     if (currentUrl === '/cart') {
+        return <CartPagePlaceholder backAction={backAction} />;
+    }
+     // Add more specific page placeholders here...
+
+    // Default placeholder
     return (
          <div className="flex flex-col h-full bg-background">
              {/* Simple Header Simulation */}
@@ -1467,6 +1507,103 @@ const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, 
      );
  };
 
+// --- Specific Placeholder Pages ---
+
+const AuthPagePlaceholder: React.FC<{ backAction: () => void }> = ({ backAction }) => {
+    const { user, loading } = useAuthContext();
+    // Add basic Firebase auth functions (replace with actual calls)
+    const handleLogin = () => alert("Login with Firebase would go here.");
+    const handleSignup = () => alert("Signup with Firebase would go here.");
+    const handleLogout = () => alert("Logout with Firebase would go here.");
+
+    return (
+        <div className="flex flex-col h-full bg-background">
+            <div className="flex items-center h-12 px-3 border-b bg-card shadow-sm sticky top-0 z-10">
+                <UiButton variant="ghost" size="icon" className="h-8 w-8" onClick={backAction}><ArrowLeft className="h-5 w-5" /></UiButton>
+                <h2 className="text-base font-semibold text-center flex-1 truncate px-2">Authentication</h2>
+                <div className="w-8"></div>
+            </div>
+            <div className="flex-1 p-4 space-y-4">
+                {loading ? (
+                    <p className="text-center text-muted-foreground">Loading auth state...</p>
+                ) : user ? (
+                    <div className="text-center space-y-3">
+                        <p>Welcome, {user.displayName || user.email}!</p>
+                        <UiButton onClick={handleLogout} variant="outline" className="w-full">Log Out</UiButton>
+                    </div>
+                ) : (
+                    <Card>
+                         <CardHeader>
+                            <CardTitle>Login or Sign Up</CardTitle>
+                         </CardHeader>
+                         <CardContent className="space-y-3">
+                            {/* Simulate form fields */}
+                             <div>
+                                <label className="text-xs" htmlFor="auth-email">Email</label>
+                                <input id="auth-email" type="email" placeholder="you@example.com" className="block w-full h-8 rounded border border-input bg-background px-2 text-sm mt-1"/>
+                             </div>
+                             <div>
+                                <label className="text-xs" htmlFor="auth-pass">Password</label>
+                                <input id="auth-pass" type="password" placeholder="********" className="block w-full h-8 rounded border border-input bg-background px-2 text-sm mt-1"/>
+                             </div>
+                            <UiButton onClick={handleLogin} className="w-full">Login</UiButton>
+                            <UiButton onClick={handleSignup} variant="secondary" className="w-full">Sign Up</UiButton>
+                         </CardContent>
+                     </Card>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const CartPagePlaceholder: React.FC<{ backAction: () => void }> = ({ backAction }) => {
+     // Simulate cart items (replace with actual cart state)
+     const cartItems = [
+         { id: '1', name: 'Sample Product 1', price: 25.00, quantity: 1 },
+         { id: '2', name: 'Another Item', price: 15.50, quantity: 2 },
+     ];
+     const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    return (
+        <div className="flex flex-col h-full bg-background">
+             <div className="flex items-center h-12 px-3 border-b bg-card shadow-sm sticky top-0 z-10">
+                 <UiButton variant="ghost" size="icon" className="h-8 w-8" onClick={backAction}><ArrowLeft className="h-5 w-5" /></UiButton>
+                 <h2 className="text-base font-semibold text-center flex-1 truncate px-2">Shopping Cart</h2>
+                 <div className="w-8"></div>
+            </div>
+             <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                {cartItems.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-10">Your cart is empty.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {cartItems.map(item => (
+                             <div key={item.id} className="flex justify-between items-center bg-card p-2 rounded border">
+                                <div>
+                                    <p className="font-medium text-sm">{item.name}</p>
+                                    <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
+                                 </div>
+                                 <p className="text-sm font-medium">${(item.price * item.quantity).toFixed(2)}</p>
+                             </div>
+                         ))}
+                    </div>
+                )}
+             </div>
+             {cartItems.length > 0 && (
+                 <div className="p-4 border-t bg-card mt-auto">
+                     <div className="flex justify-between items-center mb-3">
+                         <span className="text-lg font-semibold">Total:</span>
+                         <span className="text-lg font-semibold">${cartTotal.toFixed(2)}</span>
+                     </div>
+                     <UiButton className="w-full" onClick={() => alert('Checkout process would start here.')}>
+                         Proceed to Checkout
+                     </UiButton>
+                 </div>
+             )}
+         </div>
+     );
+ };
+
+
  // Helper functions to determine page title and icon based on URL
  const getPageTitle = (url: string): string => {
     if (url === '/menu') return 'Menu';
@@ -1491,4 +1628,3 @@ const PreviewPagePlaceholder: React.FC<PreviewPagePlaceholderProps> = ({ title, 
     if (url === '/categories') return Rows;
     return Smartphone; // Default icon
  };
-
