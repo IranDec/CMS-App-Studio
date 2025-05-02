@@ -1,8 +1,9 @@
 // Designed by Mohammad Babaei (adschi.com)
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react'; // Added useState and useMemo
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input'; // Import Input
 import {
     LayoutGrid,
     Image as ImageIcon,
@@ -21,15 +22,15 @@ import {
     Share2, // Social Feed icon
     Camera, // Camera Icon
     Bell, // Push Notification Icon
-
+    Search, // Search Icon
 } from 'lucide-react';
-import { PlatformConnector } from './platform-connector'; // Import PlatformConnector
+// Removed PlatformConnector import
 import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Import Card components
 import type { WidgetDefinition } from '@/types/widget'; // Import WidgetDefinition type
 
 // Widget definitions conforming to the interface
-const widgets: WidgetDefinition[] = [
+const availableWidgets: WidgetDefinition[] = [
   { id: 'header', name: 'App Header', icon: PanelTop, description: 'Configurable top navigation bar.' },
   { id: 'banner', name: 'Banner Image', icon: ImageIcon, description: 'Display a prominent image with an optional link.' },
   { id: 'carousel', name: 'Image Carousel', icon: GalleryHorizontalEnd, description: 'Sliding gallery of images.' },
@@ -51,6 +52,8 @@ const widgets: WidgetDefinition[] = [
 ];
 
 export function WidgetPanel() {
+   const [searchTerm, setSearchTerm] = useState(''); // State for search term
+
   const handleDragStart = (
     event: React.DragEvent<HTMLButtonElement>,
     widget: WidgetDefinition // Use the specific type here
@@ -84,42 +87,72 @@ export function WidgetPanel() {
     // event.currentTarget.style.opacity = '1'; // Restore opacity
   };
 
+   // Filter widgets based on search term
+   const filteredWidgets = useMemo(() => {
+       if (!searchTerm) {
+           return availableWidgets;
+       }
+       const lowerCaseSearchTerm = searchTerm.toLowerCase();
+       return availableWidgets.filter(widget =>
+           widget.name.toLowerCase().includes(lowerCaseSearchTerm) ||
+           widget.description.toLowerCase().includes(lowerCaseSearchTerm)
+       );
+   }, [searchTerm]);
+
+
   return (
     <div className="p-4 space-y-4 h-full flex flex-col bg-secondary/50 border-r">
       <h2 className="text-xl font-semibold text-primary px-2">Widgets</h2>
-      <ScrollArea className="flex-1 px-2">
-        <div className="space-y-2">
-          {widgets.map((widget) => (
-            <Button
-              key={widget.id}
-              variant="ghost" // Use ghost variant for a cleaner look
-              className="w-full justify-start h-auto py-2 px-3 cursor-grab active:cursor-grabbing bg-card hover:bg-accent/10 border border-transparent hover:border-primary/20 shadow-sm text-left flex items-start space-x-3" // Ensure items start at top
-              draggable
-              onDragStart={(e) => handleDragStart(e, widget)} // Pass the whole widget object
-              onDragEnd={handleDragEnd}
-              aria-label={`Drag ${widget.name} widget`}
-              title={widget.description} // Add tooltip description
-            >
-              <widget.icon className="mt-0.5 h-5 w-5 text-accent flex-shrink-0" aria-hidden="true" />
-              <div className="flex flex-col">
-                 <span className="font-medium text-sm">{widget.name}</span>
-                 <span className="text-xs text-muted-foreground">{widget.description}</span>
-              </div>
 
-            </Button>
-          ))}
-        </div>
+      {/* Search Input */}
+      <div className="relative px-2">
+         <Search className="absolute left-5 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+         <Input
+           type="text"
+           placeholder="Search widgets..."
+           className="pl-8 h-9 text-sm" // Add padding for icon
+           value={searchTerm}
+           onChange={(e) => setSearchTerm(e.target.value)}
+         />
+      </div>
+
+
+      <ScrollArea className="flex-1 px-2">
+        {filteredWidgets.length > 0 ? (
+         <div className="space-y-2">
+           {filteredWidgets.map((widget) => (
+             <Button
+               key={widget.id}
+               variant="ghost" // Use ghost variant for a cleaner look
+               className="w-full justify-start h-auto py-2 px-3 cursor-grab active:cursor-grabbing bg-card hover:bg-accent/10 border border-transparent hover:border-primary/20 shadow-sm text-left flex items-start space-x-3" // Ensure items start at top
+               draggable
+               onDragStart={(e) => handleDragStart(e, widget)} // Pass the whole widget object
+               onDragEnd={handleDragEnd}
+               aria-label={`Drag ${widget.name} widget`}
+               title={widget.description} // Add tooltip description
+             >
+               <widget.icon className="mt-0.5 h-5 w-5 text-accent flex-shrink-0" aria-hidden="true" />
+               <div className="flex flex-col">
+                  <span className="font-medium text-sm">{widget.name}</span>
+                  <span className="text-xs text-muted-foreground">{widget.description}</span>
+               </div>
+
+             </Button>
+           ))}
+         </div>
+         ) : (
+           <p className="text-center text-sm text-muted-foreground mt-4">No widgets found matching "{searchTerm}"</p>
+         )}
       </ScrollArea>
+      {/* Removed PlatformConnector from here */}
       <div className="mt-auto pt-4 border-t border-border px-2">
-         {/* Placeholder for future features like App Settings or Publishing */}
-         {/* <PlatformConnector /> */}
          <Card className="bg-card/50 shadow-none border-0">
             <CardHeader className="p-3 pb-1">
                 <CardTitle className="text-base">App Settings</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0 text-xs text-muted-foreground">
                 Configure global app settings, integrations, and publishing options here (coming soon).
-                 <PlatformConnector /> {/* Keep connector here for now */}
+                 {/* PlatformConnector removed from here */}
             </CardContent>
          </Card>
       </div>

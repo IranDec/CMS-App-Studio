@@ -1,166 +1,128 @@
 // Designed by Mohammad Babaei (adschi.com)
-'use client';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
+import { LandingHeader } from '@/components/landing/header';
+import { LandingFooter } from '@/components/landing/footer';
+import { CheckCircle } from 'lucide-react';
 
-import React, { useState, useEffect } from 'react';
-import { WidgetPanel } from '@/components/widget-panel';
-import { PhonePreview } from '@/components/phone-preview';
-import { ConfigurationPanel } from '@/components/configuration-panel';
-import type { DroppedWidget, AllWidgetConfigs } from '@/types/widget';
-import { widgetDefaultValuesMap, appTemplateDefaults } from '@/lib/widget-defaults'; // Import templates as well
-
-export default function Home() {
-  const [widgets, setWidgets] = useState<DroppedWidget[]>([]);
-  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
-  const [currentPreviewUrl, setCurrentPreviewUrl] = useState<string>('/'); // State for internal navigation
-
-  // Load initial widgets from a default template
-  useEffect(() => {
-     // Load from local storage first, otherwise use template
-     if (typeof window !== 'undefined') {
-        const savedWidgets = localStorage.getItem('cmsAppStudioWidgets');
-        const savedUrl = localStorage.getItem('cmsAppStudioPreviewUrl');
-
-        if (savedWidgets) {
-            try {
-              const parsedWidgets = JSON.parse(savedWidgets);
-              if (Array.isArray(parsedWidgets) && parsedWidgets.length > 0) { // Load only if not empty
-                setWidgets(parsedWidgets);
-                 // Select header if exists in saved data
-                 const header = parsedWidgets.find((w: DroppedWidget) => w.type === 'header');
-                 if (header) {
-                     setSelectedWidgetId(header.id);
-                 }
-              } else {
-                 // If saved data is empty, load default template
-                  loadTemplate('store'); // Load 'store' template by default
-              }
-            } catch (e) {
-              console.error("Failed to parse widgets from local storage, loading default:", e);
-               loadTemplate('store');
-            }
-          } else {
-            // No saved widgets, load default template
-             loadTemplate('store');
-          }
-
-         if (savedUrl) {
-             setCurrentPreviewUrl(savedUrl);
-         } else {
-             setCurrentPreviewUrl('/'); // Default to home if no saved URL
-         }
-
-     } else {
-        // Fallback for SSR or environments without window (shouldn't happen in 'use client')
-         loadTemplate('store');
-     }
-
-     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run only once on mount
-
-    // Function to load template and set initial state
-   const loadTemplate = (templateName: keyof typeof appTemplateDefaults) => {
-        const templateWidgets = appTemplateDefaults[templateName] || [];
-        const uniqueTemplateWidgets = templateWidgets.map(w => ({
-            ...w,
-            id: `${w.type}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-        }));
-        setWidgets(uniqueTemplateWidgets);
-        const header = uniqueTemplateWidgets.find(w => w.type === 'header');
-        setSelectedWidgetId(header ? header.id : null);
-        setCurrentPreviewUrl('/'); // Reset URL when loading template
-   };
-
-
-  // Save to local storage whenever widgets or URL change
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cmsAppStudioWidgets', JSON.stringify(widgets));
-      localStorage.setItem('cmsAppStudioPreviewUrl', currentPreviewUrl);
-    }
-  }, [widgets, currentPreviewUrl]);
-
-  // Find the selected widget configuration
-  const selectedWidget = widgets.find(w => w.id === selectedWidgetId) || null;
-
-  // Function to update a specific widget's configuration
-  const updateWidgetConfig = (widgetId: string, newConfig: Partial<AllWidgetConfigs>) => {
-    console.log(`Updating widget ${widgetId} with config:`, newConfig);
-    setWidgets(prevWidgets =>
-      prevWidgets.map(widget =>
-        widget.id === widgetId
-          ? {
-              ...widget,
-              config: { ...(widget.config || {}), ...newConfig }, // Ensure proper merging
-            }
-          : widget
-      )
-    );
-    setSelectedWidgetId(widgetId); // Keep selected
-  };
-
-  // Function to handle adding a new widget
-  const addWidget = (newWidget: DroppedWidget) => {
-    setWidgets((prevWidgets) => [...prevWidgets, newWidget]);
-    setSelectedWidgetId(newWidget.id); // Select the newly added widget
-    setCurrentPreviewUrl('/'); // Navigate back to home view when adding widget
-  };
-
- // Function to handle reordering widgets (excluding header)
-  const moveWidget = (draggedId: string, targetId: string) => {
-    setWidgets((prevWidgets) => {
-        const draggedIndex = prevWidgets.findIndex(w => w.id === draggedId && w.type !== 'header');
-        const targetIndex = prevWidgets.findIndex(w => w.id === targetId && w.type !== 'header');
-
-        if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) { return prevWidgets; }
-
-        const newWidgets = [...prevWidgets];
-        const [draggedWidget] = newWidgets.splice(draggedIndex, 1);
-        const finalTargetIndex = draggedIndex < targetIndex ? targetIndex : targetIndex;
-        newWidgets.splice(finalTargetIndex, 0, draggedWidget);
-
-        console.log(`Moved widget ${draggedId} to index ${finalTargetIndex}`);
-        return newWidgets;
-    });
-    setSelectedWidgetId(draggedId); // Keep selected
-     setCurrentPreviewUrl('/'); // Ensure we are on home view after reorder
-  };
-
-
+export default function LandingPage() {
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
-      {/* Left Panel: Widget Selection */}
-      <aside className="w-1/4 max-w-xs border-r bg-secondary overflow-y-auto shadow-md z-10">
-        <WidgetPanel />
-      </aside>
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-background to-secondary/30">
+      <LandingHeader />
 
-      {/* Center Panel: Phone Preview */}
-      <main className="flex-1 flex items-center justify-center p-4 md:p-8 bg-muted/30">
-        <PhonePreview
-          widgets={widgets}
-          setWidgets={setWidgets} // Pass setter for direct deletion/updates
-          selectedWidgetId={selectedWidgetId}
-          setSelectedWidgetId={setSelectedWidgetId}
-          addWidget={addWidget}
-          moveWidget={moveWidget}
-          updateWidgetConfig={updateWidgetConfig} // Pass update function
-          currentPreviewUrl={currentPreviewUrl} // Pass current URL
-          setCurrentPreviewUrl={setCurrentPreviewUrl} // Pass URL setter
-        />
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="w-full py-12 md:py-24 lg:py-32 xl:py-48">
+          <div className="container px-4 md:px-6">
+            <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
+               <Image
+                 src="https://picsum.photos/seed/landing_hero/600/400"
+                 alt="Hero Image"
+                 width={600}
+                 height={400}
+                 className="mx-auto aspect-video overflow-hidden rounded-xl object-cover sm:w-full lg:order-last lg:aspect-square shadow-lg"
+                 data-ai-hint="app builder interface modern"
+               />
+              <div className="flex flex-col justify-center space-y-4">
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+                    Visually Build Mobile Apps for Your CMS
+                  </h1>
+                  <p className="max-w-[600px] text-muted-foreground md:text-xl">
+                    CMS App Studio empowers you to create stunning mobile interfaces for your content management system with an intuitive drag-and-drop builder. No coding required.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2 min-[400px]:flex-row">
+                  <Button size="lg" asChild>
+                    <Link href="/studio">Get Started Now</Link>
+                  </Button>
+                   <Button size="lg" variant="outline" asChild>
+                     <Link href="#features">Learn More</Link>
+                   </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Features Section */}
+        <section id="features" className="w-full py-12 md:py-24 lg:py-32 bg-muted/40">
+          <div className="container px-4 md:px-6">
+            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+              <div className="space-y-2">
+                <div className="inline-block rounded-lg bg-secondary px-3 py-1 text-sm">Key Features</div>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Everything You Need to Build Beautiful Apps</h2>
+                <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
+                  From intuitive design tools to powerful AI assistance, CMS App Studio provides a comprehensive solution for mobile app creation.
+                </p>
+              </div>
+            </div>
+            <div className="mx-auto grid max-w-5xl items-start gap-8 sm:grid-cols-2 md:gap-12 lg:grid-cols-3 lg:max-w-none pt-12">
+              <div className="grid gap-1 rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+                <h3 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="text-primary h-5 w-5"/>Drag & Drop Builder</h3>
+                <p className="text-sm text-muted-foreground">
+                  Visually assemble your app interface by dragging pre-built widgets onto a live preview.
+                </p>
+              </div>
+              <div className="grid gap-1 rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+                <h3 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="text-primary h-5 w-5"/>Real-time Preview</h3>
+                <p className="text-sm text-muted-foreground">
+                  See your changes instantly reflected on a realistic phone mockup.
+                </p>
+              </div>
+              <div className="grid gap-1 rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+                <h3 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="text-primary h-5 w-5"/>Widget Configuration</h3>
+                <p className="text-sm text-muted-foreground">
+                  Easily customize the appearance and behavior of each widget.
+                </p>
+              </div>
+              <div className="grid gap-1 rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+                <h3 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="text-primary h-5 w-5"/>AI Assistance</h3>
+                <p className="text-sm text-muted-foreground">
+                  Leverage AI for content generation and layout suggestions to speed up your workflow.
+                </p>
+              </div>
+              <div className="grid gap-1 rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+                 <h3 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="text-primary h-5 w-5"/>Theming & Templates</h3>
+                 <p className="text-sm text-muted-foreground">
+                   Apply pre-defined themes or start quickly with application templates (Store, Blog).
+                 </p>
+              </div>
+               <div className="grid gap-1 rounded-lg border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
+                 <h3 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="text-primary h-5 w-5"/>CMS Ready</h3>
+                 <p className="text-sm text-muted-foreground">
+                   Designed to connect with popular CMS platforms like Prestashop, WooCommerce, and more.
+                 </p>
+               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Call to Action */}
+        <section className="w-full py-12 md:py-24 lg:py-32 border-t">
+          <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
+            <div className="space-y-3">
+              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
+                Ready to build your mobile app?
+              </h2>
+              <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
+                Sign up today and start designing visually stunning and functional mobile apps connected to your CMS.
+              </p>
+            </div>
+            <div className="mx-auto w-full max-w-sm space-x-2">
+                <Button size="lg" asChild>
+                    <Link href="/studio">Start Building Free</Link>
+                </Button>
+                <Button size="lg" variant="secondary" asChild>
+                    <Link href="/auth">Login / Sign Up</Link>
+                 </Button>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Right Panel: Configuration */}
-      <aside className="w-1/4 max-w-sm border-l bg-secondary overflow-y-auto shadow-md z-10 flex flex-col">
-        <ConfigurationPanel
-          selectedWidget={selectedWidget}
-          updateWidgetConfig={updateWidgetConfig}
-          className="flex-grow"
-          widgets={widgets} // Pass all widgets for context
-          setWidgets={setWidgets} // Pass for template loading
-          setSelectedWidgetId={setSelectedWidgetId} // Pass for template loading focus
-          currentPreviewUrl={currentPreviewUrl} // Pass for context
-          setCurrentPreviewUrl={setCurrentPreviewUrl} // Pass for context
-        />
-      </aside>
+      <LandingFooter />
     </div>
   );
 }

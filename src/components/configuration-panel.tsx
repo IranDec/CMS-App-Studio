@@ -26,7 +26,7 @@
  import { widgetDefaultValuesMap } from '@/lib/widget-defaults'; // Import defaults
  import { cn } from '@/lib/utils'; // Import cn utility
  import { ThemeSelector } from './theme-selector'; // Import ThemeSelector
- import { FileImage, X, Plus, GripVertical, Wand2, Text, Eye, EyeOff, ChevronRight, Loader2, Lightbulb, UploadCloud, Camera, Bell } from 'lucide-react'; // Import icons (Removed Css3, added Loader2, Lightbulb, Camera, Bell)
+ import { FileImage, X, Plus, GripVertical, Wand2, Text, Eye, EyeOff, ChevronRight, Loader2, Lightbulb, UploadCloud, Camera, Bell, Save } from 'lucide-react'; // Import icons (Removed Css3, added Loader2, Lightbulb, Camera, Bell, Save)
  import { Css3 } from '@/components/ui/css3'; // Import custom Css3 icon
  import { appTemplateDefaults } from '@/lib/widget-defaults'; // Import templates
  import {
@@ -42,6 +42,7 @@
  import { useToast } from '@/hooks/use-toast'; // Import useToast
  import { generateWidgetContent } from '@/ai/flows/generate-content-flow'; // Import AI flow
  import { suggestWidgetLayout } from '@/ai/flows/suggest-layout-flow'; // Import AI layout flow
+ import { PlatformConnector } from './platform-connector'; // Import Platform Connector for the dialog
 
 
  interface ConfigurationPanelProps {
@@ -278,7 +279,7 @@
      const fileInputRef = useRef<HTMLInputElement>(null); // Ref for hidden file input (used by multiple places now)
      const [widgetIdForUpload, setWidgetIdForUpload] = useState<string | null>(null); // Track which widget triggers upload
      const [carouselItemIndexForUpload, setCarouselItemIndexForUpload] = useState<number | null>(null); // Track which carousel item
-
+     const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false); // State for publish dialog
 
      const { toast } = useToast(); // Initialize toast hook
 
@@ -1093,15 +1094,40 @@
                  </Card>
             </div>
 
-             {/* Bottom Section: Theme Selector */}
-            <div className="mt-auto p-4 border-t border-border">
-                <ThemeSelector />
-                {/* Placeholder for Version History & Publish */}
-                <div className="mt-4 space-y-2">
-                     <Button variant="outline" size="sm" className="w-full" disabled>Version History (Soon)</Button>
-                     <Button variant="default" size="sm" className="w-full" disabled>Publish App (Soon)</Button>
-                </div>
-            </div>
+             {/* Bottom Section: Theme Selector & Publish */}
+             <div className="mt-auto p-4 border-t border-border space-y-4">
+                 <ThemeSelector />
+                  {/* Publish and Version History Buttons */}
+                  <div className="space-y-2">
+                      <Button variant="outline" size="sm" className="w-full" disabled>
+                         <Save className="h-4 w-4 mr-2" /> Version History (Soon)
+                      </Button>
+                       {/* Dialog Trigger for Publish */}
+                       <Dialog open={isPublishDialogOpen} onOpenChange={setIsPublishDialogOpen}>
+                         <DialogTrigger asChild>
+                            <Button variant="default" size="sm" className="w-full">
+                                Publish App...
+                             </Button>
+                         </DialogTrigger>
+                          <DialogContent>
+                              <DialogHeader>
+                                 <DialogTitle>Connect & Publish</DialogTitle>
+                                  <DialogDescription>Connect your CMS platform to fetch data and publish your app.</DialogDescription>
+                              </DialogHeader>
+                              {/* Platform Connector inside the dialog */}
+                              <div className="py-4">
+                                <PlatformConnector />
+                              </div>
+                               <DialogFooter>
+                                 <DialogClose asChild>
+                                     <Button variant="ghost">Cancel</Button>
+                                  </DialogClose>
+                                  {/* Keep the Connect button from PlatformConnector */}
+                               </DialogFooter>
+                           </DialogContent>
+                       </Dialog>
+                   </div>
+             </div>
              {/* Hidden file input for reuse */}
              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
         </div>
